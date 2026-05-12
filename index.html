@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fall-analyse V1.1</title>
+  <title>Fallanalyse HeatMap V.2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -36,61 +36,65 @@
     
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
     
-    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-    .card .label { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; }
-    .card .value { font-size: 24px; font-weight: 800; margin-top: 4px; }
-
-    .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; transition: opacity .15s; }
+    .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn:disabled { opacity: .3; cursor: not-allowed; }
     .btn-primary { background: var(--blue); color: #000; width: 100%; margin-bottom: 10px; }
     .btn-colorize { background: #1a3a22; color: var(--green); border: 1px solid #2a5a32; width: 100%; }
+    .btn-ghost { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); }
     
-    select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; margin-bottom: 14px; }
+    select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; margin-bottom: 14px; outline: none; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+    .stat-label { font-size: 9px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+    .stat-value { font-size: 18px; font-weight: 800; }
 
     .legend { display: flex; flex-direction: column; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
     .legend-item { display: flex; align-items: center; gap: 8px; }
-    .color-bar { height: 8px; width: 60px; border-radius: 2px; }
+    .color-bar { height: 6px; width: 50px; border-radius: 1px; }
   </style>
 </head>
 <body>
 
 <header>
   <div class="header-title">
-    <h1>Fall-analyse V1.1</h1>
-    <p>Geometrisk kontroll · kun vegflater</p>
+    <h1>Fallanalyse HeatMap</h1>
+    <p>v2.0 · kun synlige modeller</p>
   </div>
-  <button class="btn btn-ghost" id="btnLoad" style="background:var(--surface2); color:var(--ink); border:1px solid var(--border)">Hent modeller</button>
+  <button class="btn btn-ghost" id="btnSync">🔄 Oppdater liste</button>
 </header>
 
-<div id="statusBar">Kobler til Trimble Connect…</div>
+<div id="statusBar">Venter på tilkobling til viewer...</div>
 
 <main>
   <div class="panel">
-    <select id="modelSelect"><option value="">– velg modell –</option></select>
+    <label style="font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block;">Velg vegmodell i visningen:</label>
+    <select id="modelSelect">
+      <option value="">– ingen modeller funnet –</option>
+    </select>
     <button class="btn btn-primary" id="btnAnalyze">▶ Kjør Analyse</button>
     <button class="btn btn-colorize" id="btnColorize" disabled>🎨 Aktiver Heatmap</button>
   </div>
 
-  <div class="cards">
-    <div class="card" style="border-color: #f85149">
-      <div class="label">Kritisk < 1.5%</div>
-      <div id="statRed" class="value" style="color:#f85149">0%</div>
+  <div class="stats-grid">
+    <div class="stat-card" style="border-bottom: 3px solid var(--red)">
+      <div class="stat-label">Kritisk</div>
+      <div id="valRed" class="stat-value" style="color: var(--red)">-</div>
     </div>
-    <div class="card" style="border-color: #f0883e">
-      <div class="label">Advarsel 1.5-2%</div>
-      <div id="statYellow" class="value" style="color:#f0883e">0%</div>
+    <div class="stat-card" style="border-bottom: 3px solid var(--orange)">
+      <div class="stat-label">Advarsel</div>
+      <div id="valYellow" class="stat-value" style="color: var(--orange)">-</div>
     </div>
-    <div class="card" style="border-color: #3fb950">
-      <div class="label">Godkjent > 2%</div>
-      <div id="statGreen" class="value" style="color:#3fb950">0%</div>
+    <div class="stat-card" style="border-bottom: 3px solid var(--green)">
+      <div class="stat-label">Godkjent</div>
+      <div id="valGreen" class="stat-value" style="color: var(--green)">-</div>
     </div>
   </div>
 
   <div class="panel legend">
-    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #4a0000, #f85149)"></div> Kritisk fall (Mørkerød til lyserød)</div>
-    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #f0883e, #d29922)"></div> Marginalt fall (Oransje til gul)</div>
-    <div class="legend-item"><div class="color-bar" style="background: #3fb950"></div> Tilfredsstillende fall (Grønn)</div>
+    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #4a0000, #f85149)"></div> 0.0% - 1.5% (Kritisk)</div>
+    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #f0883e, #d29922)"></div> 1.5% - 2.0% (Advarsel)</div>
+    <div class="legend-item"><div class="color-bar" style="background: #3fb950"></div> > 2.0% (Godkjent)</div>
   </div>
 </main>
 

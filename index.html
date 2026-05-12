@@ -1,25 +1,99 @@
 <!DOCTYPE html>
-<html>
+<html lang="nb">
 <head>
-    <style>
-        body { font-family: sans-serif; padding: 15px; color: #333; }
-        .btn { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; }
-        .legend { margin-top: 20px; font-size: 12px; }
-        .color-box { inline-block; width: 15px; height: 15px; margin-right: 5px; vertical-align: middle; }
-    </style>
+  <meta charset="UTF-8"/>
+  <title>E6SO Fall-Analysator V.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1f2937;
+      --border:    #30363d;
+      --ink:       #e6edf3;
+      --muted:     #7d8590;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --orange:    #f0883e;
+      --red:       #f85149;
+      --blue:      #58a6ff;
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'Syne', sans-serif;
+    }
+
+    body { background: var(--bg); color: var(--ink); font-family: var(--sans); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .header-title h1 { font-size: 16px; font-weight: 800; margin: 0; letter-spacing: -.3px; }
+    .header-title p { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
+
+    #statusBar { font-family: var(--mono); font-size: 11px; padding: 6px 16px; background: #0d2044; color: var(--blue); border-bottom: 1px solid #1a3a5c; flex-shrink: 0; }
+
+    main { flex: 1; padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+    
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+    .card .label { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; }
+    .card .value { font-size: 24px; font-weight: 800; margin-top: 4px; }
+
+    .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; transition: opacity .15s; }
+    .btn:disabled { opacity: .3; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: #000; width: 100%; margin-bottom: 10px; }
+    .btn-colorize { background: #1a3a22; color: var(--green); border: 1px solid #2a5a32; width: 100%; }
+    
+    select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; margin-bottom: 14px; }
+
+    .legend { display: flex; flex-direction: column; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+    .color-bar { height: 8px; width: 60px; border-radius: 2px; }
+  </style>
 </head>
 <body>
-    <h3>Fall-Analysator</h3>
-    <p>Velg vegflater og kjør analyse:</p>
-    <button id="runAnalysis" class="btn">Analyser Fall</button>
-    
-    <div class="legend">
-        <div><span class="color-box" style="background: red;"></span> < 1.5% (Kritisk)</div>
-        <div><span class="color-box" style="background: orange;"></span> 1.5% - 2.0% (Advarsel)</div>
-        <div><span class="color-box" style="background: green;"></span> > 2.0% (Godkjent)</div>
-    </div>
 
-    <script src="https://connect-extensions.trimble.com/sdk/trimble.connect.js"></script>
-    <script src="script.js"></script>
+<header>
+  <div class="header-title">
+    <h1>E6SO Fall-Analysator</h1>
+    <p>Geometrisk kontroll · kun vegflater</p>
+  </div>
+  <button class="btn btn-ghost" id="btnLoad" style="background:var(--surface2); color:var(--ink); border:1px solid var(--border)">Hent modeller</button>
+</header>
+
+<div id="statusBar">Kobler til Trimble Connect…</div>
+
+<main>
+  <div class="panel">
+    <select id="modelSelect"><option value="">– velg modell –</option></select>
+    <button class="btn btn-primary" id="btnAnalyze">▶ Kjør Analyse</button>
+    <button class="btn btn-colorize" id="btnColorize" disabled>🎨 Aktiver Heatmap</button>
+  </div>
+
+  <div class="cards">
+    <div class="card" style="border-color: #f85149">
+      <div class="label">Kritisk < 1.5%</div>
+      <div id="statRed" class="value" style="color:#f85149">0%</div>
+    </div>
+    <div class="card" style="border-color: #f0883e">
+      <div class="label">Advarsel 1.5-2%</div>
+      <div id="statYellow" class="value" style="color:#f0883e">0%</div>
+    </div>
+    <div class="card" style="border-color: #3fb950">
+      <div class="label">Godkjent > 2%</div>
+      <div id="statGreen" class="value" style="color:#3fb950">0%</div>
+    </div>
+  </div>
+
+  <div class="panel legend">
+    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #4a0000, #f85149)"></div> Kritisk fall (Mørkerød til lyserød)</div>
+    <div class="legend-item"><div class="color-bar" style="background: linear-gradient(to right, #f0883e, #d29922)"></div> Marginalt fall (Oransje til gul)</div>
+    <div class="legend-item"><div class="color-bar" style="background: #3fb950"></div> Tilfredsstillende fall (Grønn)</div>
+  </div>
+</main>
+
+<script src="script.js"></script>
 </body>
 </html>

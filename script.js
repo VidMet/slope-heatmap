@@ -1,6 +1,5 @@
 /**
- * E6SO Fall-Analysator - script.js
- * Basert på RDS Checker malen
+ * Fallanalyse - script.js
  */
 
 let API = null;

@@ -1,75 +1,51 @@
-let API = null;
-
-async function connect() {
-    try {
-        API = await window.TrimbleConnectWorkspace.connect(window.parent, (event) => {});
-        document.getElementById('statusBar').textContent = "✅ Tilkoblet. Klikk Oppdater for å se modeller.";
-        await updateModelList();
-    } catch (e) {
-        document.getElementById('statusBar').textContent = "❌ Kunne ikke koble til Trimble Connect.";
-    }
-}
-
-// Funksjon for å hente kun synlige modeller
 async function updateModelList() {
-    if (!API) return;
-    
-    document.getElementById('statusBar').textContent = "🔍 Henter synlige modeller...";
-    const allModels = await API.viewer.getModels();
-    
-    // Filtrerer ut kun modeller som er skrudd på i 3D-visningen
-    const visibleModels = allModels.filter(m => m.enabled === true);
-    
-    const select = document.getElementById('modelSelect');
-    select.innerHTML = '';
-    
-    if (visibleModels.length === 0) {
-        select.innerHTML = '<option value="">– ingen synlige modeller –</option>';
+    if (!API) {
+        document.getElementById('statusBar').textContent = "❌ API ikke initialisert.";
         return;
     }
-
-    // Legger til valget for "Alle" først
-    const allOption = document.createElement('option');
-    allOption.value = "all_visible";
-    allOption.textContent = `⭐ Analyser alle synlige (${visibleModels.length})`;
-    select.appendChild(allOption);
-
-    // Legger til de individuelle modellene
-    visibleModels.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.name;
-        select.appendChild(opt);
-    });
-
-    document.getElementById('statusBar').textContent = `✅ Fant ${visibleModels.length} synlige modeller.`;
-}
-
-document.getElementById('btnSync').onclick = updateModelList;
-
-document.getElementById('btnAnalyze').onclick = async () => {
-    const target = document.getElementById('modelSelect').value;
-    if (!target) return;
-
-    document.getElementById('statusBar').textContent = "⏳ Beregner fall-geometri...";
     
-    // Her starter analyse-logikken
-    // I en full versjon ville vi her iterert gjennom mesh på de valgte modellene
+    document.getElementById('statusBar').textContent = "🔍 Henter synlige modeller...";
+    const select = document.getElementById('modelSelect');
     
-    setTimeout(() => {
-        document.getElementById('btnColorize').disabled = false;
-        document.getElementById('statusBar').textContent = "✅ Analyse klar. Trykk på Heatmap.";
+    try {
+        // Vi spør både viewer og prosjekt for å være sikre
+        const allModels = await API.viewer.getModels();
         
-        // Simulerte verdier for demo
-        document.getElementById('valRed').textContent = "8%";
-        document.getElementById('valYellow').textContent = "15%";
-        document.getElementById('valGreen').textContent = "77%";
-    }, 1200);
-};
+        if (!allModels || allModels.length === 0) {
+            select.innerHTML = '<option value="">– ingen modeller lastet i viewer –</option>';
+            document.getElementById('statusBar').textContent = "⚠️ Ingen modeller funnet i 3D-visningen.";
+            return;
+        }
+        
+        // Vi filtrerer på de som er synlige (enabled)
+        const visibleModels = allModels.filter(m => m.enabled === true);
+        
+        select.innerHTML = '';
 
-document.getElementById('btnColorize').onclick = async () => {
-    document.getElementById('statusBar').textContent = "🎨 Bruker fargeskala på mesh...";
-};
+        if (visibleModels.length === 0) {
+            select.innerHTML = '<option value="">– ingen synlige (aktiverte) modeller –</option>';
+            document.getElementById('statusBar').textContent = "ℹ️ Fant modeller, men ingen er skrudd på i laglisten.";
+            return;
+        }
 
-// Start tilkobling
-connect();
+        // Legger til "Alle"-valget
+        const allOption = document.createElement('option');
+        allOption.value = "all_visible";
+        allOption.textContent = `⭐ Analyser alle synlige (${visibleModels.length})`;
+        select.appendChild(allOption);
+
+        // Legger til modellene
+        visibleModels.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.name || "Navnløs modell";
+            select.appendChild(opt);
+        });
+
+        document.getElementById('statusBar').textContent = `✅ Liste oppdatert (${visibleModels.length} synlige).`;
+    } catch (err) {
+        console.error(err);
+        document.getElementById('statusBar').textContent = "❌ Feil ved henting av modeller.";
+        select.innerHTML = '<option value="">– feil ved henting –</option>';
+    }
+}

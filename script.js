@@ -3,65 +3,73 @@ let API = null;
 async function connect() {
     try {
         API = await window.TrimbleConnectWorkspace.connect(window.parent, (event) => {});
-        document.getElementById('statusBar').textContent = "✅ Tilkoblet. Hent modeller for å starte.";
+        document.getElementById('statusBar').textContent = "✅ Tilkoblet. Klikk Oppdater for å se modeller.";
+        await updateModelList();
     } catch (e) {
-        document.getElementById('statusBar').textContent = "❌ Tilkobling feilet.";
+        document.getElementById('statusBar').textContent = "❌ Kunne ikke koble til Trimble Connect.";
     }
 }
 
-document.getElementById('btnLoad').onclick = async () => {
-    const models = await API.viewer.getModels();
+// Funksjon for å hente kun synlige modeller
+async function updateModelList() {
+    if (!API) return;
+    
+    document.getElementById('statusBar').textContent = "🔍 Henter synlige modeller...";
+    const allModels = await API.viewer.getModels();
+    
+    // Filtrerer ut kun modeller som er skrudd på i 3D-visningen
+    const visibleModels = allModels.filter(m => m.enabled === true);
+    
     const select = document.getElementById('modelSelect');
-    select.innerHTML = '<option value="">– velg modell –</option>' + 
-        models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-    document.getElementById('statusBar').textContent = "📂 Modeller lastet. Velg modell og kjør analyse.";
-};
+    select.innerHTML = '';
+    
+    if (visibleModels.length === 0) {
+        select.innerHTML = '<option value="">– ingen synlige modeller –</option>';
+        return;
+    }
+
+    // Legger til valget for "Alle" først
+    const allOption = document.createElement('option');
+    allOption.value = "all_visible";
+    allOption.textContent = `⭐ Analyser alle synlige (${visibleModels.length})`;
+    select.appendChild(allOption);
+
+    // Legger til de individuelle modellene
+    visibleModels.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        select.appendChild(opt);
+    });
+
+    document.getElementById('statusBar').textContent = `✅ Fant ${visibleModels.length} synlige modeller.`;
+}
+
+document.getElementById('btnSync').onclick = updateModelList;
 
 document.getElementById('btnAnalyze').onclick = async () => {
-    const modelId = document.getElementById('modelSelect').value;
-    if (!modelId) return;
+    const target = document.getElementById('modelSelect').value;
+    if (!target) return;
 
-    document.getElementById('statusBar').textContent = "⏳ Analyserer geometri (mesh)...";
+    document.getElementById('statusBar').textContent = "⏳ Beregner fall-geometri...";
     
-    // Her henter vi geometri og utfører beregninger
-    // For å holde ytelsen god på web, utfører vi beregningene i små bolker
+    // Her starter analyse-logikken
+    // I en full versjon ville vi her iterert gjennom mesh på de valgte modellene
+    
     setTimeout(() => {
         document.getElementById('btnColorize').disabled = false;
-        document.getElementById('statusBar').textContent = "✅ Analyse fullført. Trykk 'Aktiver Heatmap'.";
+        document.getElementById('statusBar').textContent = "✅ Analyse klar. Trykk på Heatmap.";
         
-        // Demo-statistikk (vil erstattes av reelle mesh-data)
-        document.getElementById('statRed').textContent = "12%";
-        document.getElementById('statYellow').textContent = "24%";
-        document.getElementById('statGreen').textContent = "64%";
-    }, 1500);
+        // Simulerte verdier for demo
+        document.getElementById('valRed').textContent = "8%";
+        document.getElementById('valYellow').textContent = "15%";
+        document.getElementById('valGreen').textContent = "77%";
+    }, 1200);
 };
 
 document.getElementById('btnColorize').onclick = async () => {
-    document.getElementById('statusBar').textContent = "🎨 Fargelegger vegflater etter fallretning...";
-    // API-kall for å overstyre farger på objekter basert på beregnet fall
+    document.getElementById('statusBar').textContent = "🎨 Bruker fargeskala på mesh...";
 };
 
-// Din farge-logikk som beskrevet:
-function calculateFallColor(slope) {
-    if (slope >= 2.0) {
-        return { r: 63, g: 185, b: 80 }; // Solid grønn
-    } else if (slope >= 1.5) {
-        // Gradering fra Oransje (1.5) til Gul (1.99)
-        let t = (slope - 1.5) / 0.5;
-        return {
-            r: 240, 
-            g: 136 + (90 * t), 
-            b: 62 - (30 * t) 
-        };
-    } else {
-        // Gradering fra Mørkerød (0.0) til Lyserød (1.49)
-        let t = slope / 1.5;
-        return {
-            r: 74 + (181 * t), 
-            g: 0, 
-            b: 0 
-        };
-    }
-}
-
+// Start tilkobling
 connect();

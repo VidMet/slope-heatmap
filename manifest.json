@@ -1,0 +1,13 @@
+{
+  "name": "Fall-Analysator",
+  "id": "veg-fall-analyse-v1",
+  "version": "1.0.0",
+  "description": "Visualiserer fall på vegflater med heatmap og piler.",
+  "icon": "icon.png",
+  "entryPoint": "index.html",
+  "permissions": [
+    "viewer.objects.read",
+    "viewer.objects.write",
+    "viewer.geometry.read"
+  ]
+}

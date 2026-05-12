@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; padding: 15px; color: #333; }
+        .btn { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; }
+        .legend { margin-top: 20px; font-size: 12px; }
+        .color-box { inline-block; width: 15px; height: 15px; margin-right: 5px; vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <h3>Fall-Analysator</h3>
+    <p>Velg vegflater og kjør analyse:</p>
+    <button id="runAnalysis" class="btn">Analyser Fall</button>
+    
+    <div class="legend">
+        <div><span class="color-box" style="background: red;"></span> < 1.5% (Kritisk)</div>
+        <div><span class="color-box" style="background: orange;"></span> 1.5% - 2.0% (Advarsel)</div>
+        <div><span class="color-box" style="background: green;"></span> > 2.0% (Godkjent)</div>
+    </div>
+
+    <script src="https://connect-extensions.trimble.com/sdk/trimble.connect.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

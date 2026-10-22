@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v3.1 (3D IFC-Overlay)</title>
+  <title>Fallanalyse HeatMap v3.2 (Flervalg & 3D IFC-Overlay)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -39,13 +39,25 @@
     main { flex: 1; padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
     
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-    .panel-label { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; display: block; }
+    .panel-label { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    /* Multi-select liste for modeller */
+    .model-list-actions { display: flex; gap: 8px; font-size: 10px; font-family: var(--mono); }
+    .model-list-actions a { color: var(--blue); cursor: pointer; text-decoration: none; }
+    .model-list-actions a:hover { text-decoration: underline; }
+    
+    .model-checklist { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; max-height: 125px; overflow-y: auto; padding: 6px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+    .model-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; font-family: var(--mono); font-size: 11px; cursor: pointer; user-select: none; }
+    .model-item:hover { background: rgba(88, 166, 255, 0.1); }
+    .model-item input[type=checkbox] { accent-color: var(--blue); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+    .model-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .field { margin-bottom: 10px; }
+    .grid-2 .field { margin-bottom: 0; }
     .field label { font-size: 10px; color: var(--muted); font-family: var(--mono); display: block; margin-bottom: 4px; }
     .field input, .field select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 7px 9px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; outline: none; }
-    
-    select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; margin-bottom: 10px; outline: none; }
+    .field input:focus { border-color: var(--blue); }
 
     .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 9px 14px; border-radius: 6px; border: none; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
     .btn:disabled { opacity: .35; cursor: not-allowed; }
@@ -55,9 +67,9 @@
     .btn-upload { background: #26213a; color: #c4b5fd; border: 1px solid #4c3d75; }
     .btn-ghost { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); width: auto; padding: 6px 12px; }
 
-    .file-box { background: #121820; border: 1px dashed #3b82f6; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+    .file-box { background: #121820; border: 1px dashed #3b82f6; border-radius: 8px; padding: 9px 10px; margin-bottom: 12px; }
     .file-box.loaded { border-color: var(--green); background: #0f2419; }
-    .file-box-title { font-size: 11px; font-weight: 700; color: var(--blue); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .file-box-title { font-size: 11px; font-weight: 700; color: var(--blue); margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; }
     .file-box.loaded .file-box-title { color: var(--green); }
     .file-box input[type=file] { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 100%; margin-top: 4px; }
 
@@ -67,7 +79,7 @@
     .stat-value { font-size: 16px; font-weight: 800; }
     .stat-sub { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-top: 3px; }
 
-    .canvas-wrap { position: relative; background: #090d12; border: 1px solid var(--border); border-radius: 8px; height: 210px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .canvas-wrap { position: relative; background: #090d12; border: 1px solid var(--border); border-radius: 8px; height: 200px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     canvas { width: 100%; height: 100%; cursor: crosshair; display: block; }
     .canvas-hint { position: absolute; pointer-events: none; font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 12px; }
 
@@ -81,7 +93,7 @@
 <header>
   <div class="header-title">
     <h1>Fallanalyse HeatMap</h1>
-    <p>v3.1 · 3D IFC-Overlay & Trekantanalyse</p>
+    <p>v3.2 · Flervalg &amp; 3D IFC-Overlay</p>
   </div>
   <button class="btn btn-ghost" id="btnSync">🔄 Oppdater</button>
 </header>
@@ -90,34 +102,23 @@
 
 <main>
   <div class="panel">
-    <label class="panel-label">1. Velg synlig vegmodell i visningen:</label>
-    <select id="modelSelect">
-      <option value="">– henter modeller... –</option>
-    </select>
+    <div class="panel-label">
+      <span>1. Velg synlige vegmodeller (<span id="selectedCountLabel">0</span> valgt):</span>
+      <div class="model-list-actions">
+        <a id="linkSelectAll">Velg alle</a> · <a id="linkSelectNone">Velg ingen</a>
+      </div>
+    </div>
+    
+    <div class="model-checklist" id="modelChecklist">
+      <div style="color:var(--muted); font-family:var(--mono); font-size:11px; padding:4px;">– henter synlige modeller... –</div>
+    </div>
 
     <div class="file-box" id="localFileBox">
       <div class="file-box-title">
-        <span id="localFileTitle">📂 Lokal IFC-fil (Anbefalt hvis sky-token avvises)</span>
+        <span id="localFileTitle">📂 Lokale IFC-filer (Valgfri reserve, støtter flervalg)</span>
         <span id="localFileBadge" style="font-family:var(--mono);font-size:10px;">Valgfri</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;">
-        Velg <b>.ifc</b>-filen fra PC-en din for lynrask analyse uten sky-timeout:
-      </div>
-      <input type="file" id="localIfcInput" accept=".ifc"/>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label>Kun valgte objekter i 3D?</label>
-        <select id="scopeSelect" style="margin-bottom:0">
-          <option value="all">Hele modellen (Toppflater)</option>
-          <option value="selected">Kun markert i 3D</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Z-offset 3D-overlay (mm):</label>
-        <input type="number" id="zOffsetMm" value="5" min="1" max="100" step="1"/>
-      </div>
+      <input type="file" id="localIfcInput" accept=".ifc" multiple/>
     </div>
 
     <div class="grid-2">
@@ -131,7 +132,18 @@
       </div>
     </div>
 
-    <button class="btn btn-primary" id="btnAnalyze">▶ 1. Hent geometri & Kjør Fallanalyse</button>
+    <div class="grid-2">
+      <div class="field">
+        <label>Z-offset 3D-overlay (mm):</label>
+        <input type="number" id="zOffsetMm" value="5" min="1" max="100" step="1"/>
+      </div>
+      <div class="field">
+        <label>Filnavn for 3D HeatMap (.ifc):</label>
+        <input type="text" id="outputFileName" value="HeatMap_Fallanalyse.ifc" placeholder="Navn_paa_fil.ifc"/>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btnAnalyze">▶ 1. Hent geometri &amp; Kjør Fallanalyse</button>
     <button class="btn btn-colorize" id="btnDownloadIfc" disabled>💾 2A. Last ned 3D HeatMap (.ifc)</button>
     <button class="btn btn-upload" id="btnUploadTc" disabled>☁️ 2B. Lagre HeatMap-IFC rett til TC-prosjektet</button>
   </div>
@@ -156,12 +168,12 @@
 
   <div class="panel" style="padding: 10px 14px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-      <span class="panel-label" style="margin:0;">2D FORHÅNDSVISNING (KLIKK FOR 3D-MARKØR)</span>
+      <span class="panel-label" style="margin:0;">2D FORHÅNDSVISNING (KLIKK FOR 3D-HOPP)</span>
       <span id="triCountLabel" style="font-family:var(--mono); font-size:10px; color:var(--muted);">0 trekanter</span>
     </div>
     <div class="canvas-wrap">
       <canvas id="heatmapCanvas" width="600" height="360"></canvas>
-      <div class="canvas-hint" id="canvasHint">Kjør analyse for å vise interaktivt helningskart og bygge 3D-overlay.</div>
+      <div class="canvas-hint" id="canvasHint">Velg én eller flere modeller og kjør analyse for å bygge felles 3D-overlay.</div>
     </div>
   </div>
 
@@ -177,7 +189,13 @@ let API = null;
 let visibleModels = [];
 let analyzedTriangles = [];
 let generatedIfcText = null;
-let lastCloudAuth = { token: null, projectId: null, rootFolderId: null, base: "https://app21.connect.trimble.com/tc/api" };
+let userEditedFileName = false;
+let lastCloudAuth = {
+  token: null,
+  projectId: null,
+  parentFolderId: null,
+  base: "https://app21.connect.trimble.com/tc/api"
+};
 
 const $ = id => document.getElementById(id);
 
@@ -187,8 +205,7 @@ function setStatus(msg, type = "info") {
   bar.className = type === "ok" ? "ok" : type === "warn" ? "warn" : type === "err" ? "err" : "";
 }
 
-// Beskytter mot Trimble Connect sin "dispatcher.ts: Operation timed out"
-function safeApiCall(promiseFn, timeoutMs = 4000, fallbackVal = null) {
+function safeApiCall(promiseFn, timeoutMs = 4500, fallbackVal = null) {
   return new Promise(resolve => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -215,27 +232,95 @@ function coreBase(location) {
   return "https://app.connect.trimble.com/tc/api";
 }
 
-// Visuell bekreftelse når lokal fil velges
+// Rekursiv URL-finner (samme som i original-ifc-download.js)
+function findUrlInObject(value) {
+  if (!value) return null;
+  if (typeof value === "string" && /^https?:\/\//i.test(value)) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = findUrlInObject(item);
+      if (hit) return hit;
+    }
+  } else if (typeof value === "object") {
+    for (const key of ["uploadUrl", "uploadURL", "presignedUrl", "signedUrl", "signedURL", "url", "href", "location"]) {
+      if (typeof value[key] === "string" && /^https?:\/\//i.test(value[key])) return value[key];
+    }
+    for (const item of Object.values(value)) {
+      const hit = findUrlInObject(item);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+$("outputFileName").addEventListener("input", () => {
+  userEditedFileName = true;
+});
+
+function getCleanOutputFileName() {
+  let name = ($("outputFileName").value || "HeatMap_Fallanalyse").trim();
+  name = name.replace(/[<>:"/\\|?*]+/g, "_");
+  if (!/\.ifc$/i.test(name)) name += ".ifc";
+  return name;
+}
+
+function getSelectedModelIds() {
+  return Array.from(document.querySelectorAll(".model-cb:checked")).map(cb => cb.value);
+}
+
+function updateSelectedModelsUI() {
+  const checked = Array.from(document.querySelectorAll(".model-cb:checked"));
+  $("selectedCountLabel").textContent = checked.length;
+
+  if (!userEditedFileName) {
+    const localFiles = $("localIfcInput")?.files;
+    if (localFiles && localFiles.length > 0) {
+      const base = localFiles[0].name.replace(/\.ifc$/i, "");
+      $("outputFileName").value = localFiles.length === 1
+        ? `HeatMap_${base}.ifc`
+        : `HeatMap_${base}_mfl_${localFiles.length}modeller.ifc`;
+    } else if (checked.length === 1) {
+      const mName = (checked[0].dataset.name || "Vegmodell").replace(/\.ifc$/i, "");
+      $("outputFileName").value = `HeatMap_${mName}.ifc`;
+    } else if (checked.length > 1) {
+      const first = (checked[0].dataset.name || "Veg").replace(/\.ifc$/i, "");
+      $("outputFileName").value = `HeatMap_${first}_pluss_${checked.length - 1}_modeller.ifc`;
+    }
+  }
+}
+
+$("linkSelectAll").addEventListener("click", () => {
+  document.querySelectorAll(".model-cb").forEach(cb => cb.checked = true);
+  updateSelectedModelsUI();
+});
+
+$("linkSelectNone").addEventListener("click", () => {
+  document.querySelectorAll(".model-cb").forEach(cb => cb.checked = false);
+  updateSelectedModelsUI();
+});
+
 $("localIfcInput").addEventListener("change", (e) => {
-  const file = e.target.files?.[0];
+  const files = Array.from(e.target.files || []);
   const box = $("localFileBox");
-  if (file) {
+  if (files.length > 0) {
     box.classList.add("loaded");
-    $("localFileTitle").textContent = `✅ Lokal IFC klar: ${file.name}`;
-    $("localFileBadge").textContent = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
-    setStatus(`Lokal fil '${file.name}' er klar! Klikk '1. Hent geometri & Kjør Fallanalyse'.`, "ok");
+    const totalMb = files.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
+    $("localFileTitle").textContent = `✅ ${files.length} lokal(e) IFC-fil(er) klar`;
+    $("localFileBadge").textContent = `${totalMb.toFixed(1)} MB`;
+    updateSelectedModelsUI();
+    setStatus(`${files.length} lokal(e) fil(er) valgt. Klikk '1. Hent geometri & Kjør Fallanalyse'.`, "ok");
   } else {
     box.classList.remove("loaded");
-    $("localFileTitle").textContent = "📂 Lokal IFC-fil (Anbefalt hvis sky-token avvises)";
+    $("localFileTitle").textContent = "📂 Lokale IFC-filer (Valgfri reserve, støtter flervalg)";
     $("localFileBadge").textContent = "Valgfri";
+    updateSelectedModelsUI();
   }
 });
 
-// 1. KOBLE TIL TRIMBLE CONNECT MED EVENT-LYTTER FOR TOKEN
+// 1. KOBLE TIL TRIMBLE CONNECT
 async function initTC() {
   try {
     API = await window.TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-      // Fanger opp accessToken passivt hvis TC sender det via event
       if (event === "extension.accessToken" && typeof data === "string" && data.length > 50) {
         lastCloudAuth.token = data;
       } else if (data?.accessToken && typeof data.accessToken === "string") {
@@ -245,7 +330,7 @@ async function initTC() {
     setStatus("Tilkoblet Trimble Connect. Henter synlige modeller...", "ok");
     await syncVisibleModels();
   } catch (err) {
-    setStatus("Frakoblet modus (du kan fortsatt analysere lokal IFC-fil).", "warn");
+    setStatus("Frakoblet modus (du kan fortsatt analysere lokale IFC-filer).", "warn");
   }
 }
 
@@ -273,36 +358,56 @@ async function syncVisibleModels() {
       }
     }
 
-    const sel = $("modelSelect");
+    const container = $("modelChecklist");
     if (visibleModels.length === 0) {
-      sel.innerHTML = `<option value="">– ingen synlige modeller funnet –</option>`;
-      setStatus("Ingen synlige modeller funnet. Skru på en modell eller velg lokal IFC-fil.", "warn");
+      container.innerHTML = `<div style="color:var(--muted); font-family:var(--mono); font-size:11px; padding:4px;">– ingen synlige modeller funnet –</div>`;
+      setStatus("Ingen synlige modeller funnet. Skru på modeller i 3D eller velg lokale IFC-filer.", "warn");
     } else {
-      sel.innerHTML = visibleModels.map(m => `<option value="${m.id}">${m.name}</option>`).join("");
-      setStatus(`${visibleModels.length} synlig(e) modell(er) klar for analyse.`, "ok");
+      container.innerHTML = visibleModels.map((m, idx) => `
+        <label class="model-item">
+          <input type="checkbox" class="model-cb" value="${m.id}" data-name="${m.name.replace(/"/g, '&quot;')}" ${idx === 0 ? "checked" : ""}/>
+          <span title="${m.name}">${m.name}</span>
+        </label>
+      `).join("");
+      container.querySelectorAll(".model-cb").forEach(cb => cb.addEventListener("change", updateSelectedModelsUI));
+      updateSelectedModelsUI();
+      setStatus(`${visibleModels.length} synlig(e) modell(er) funnet. Velg én eller flere!`, "ok");
     }
   } catch (err) {
     setStatus("Kunne ikke hente modell-liste: " + err.message, "err");
   }
 }
 
-// 2. HENT ORIGINAL IFC (3-trinns sikker kjede som aldri timer ut dispatcher.ts)
-async function fetchIfcText(modelId) {
-  // TRINN A: Sjekk alltid lokal fil først (umiddelbar, 0 API-kall)
-  const localFile = $("localIfcInput")?.files?.[0];
-  if (localFile) {
-    setStatus(`Leser lokal IFC-fil (${localFile.name})...`);
-    return { text: await localFile.text(), fileName: localFile.name };
+// Sikrer at vi har gyldig sky-token og prosjektdetaljer
+async function ensureCloudAuth() {
+  if (!API) return false;
+  if (!lastCloudAuth.token && typeof API.extension?.requestPermission === "function") {
+    const perm = await safeApiCall(() => API.extension.requestPermission("accesstoken"), 3500, null);
+    if (typeof perm === "string" && perm.length > 50) lastCloudAuth.token = perm;
   }
+  if (!lastCloudAuth.token && typeof API.extension?.getPermission === "function") {
+    const perm2 = await safeApiCall(() => API.extension.getPermission("accesstoken"), 2500, null);
+    if (typeof perm2 === "string" && perm2.length > 50) lastCloudAuth.token = perm2;
+  }
+  const project = await safeApiCall(() => API.project.getProject(), 3500, null);
+  if (project) {
+    lastCloudAuth.projectId = project.id || lastCloudAuth.projectId;
+    lastCloudAuth.parentFolderId = project.rootId || project.rootFolderId || lastCloudAuth.parentFolderId;
+    lastCloudAuth.base = coreBase(project.location);
+  }
+  return Boolean(lastCloudAuth.token);
+}
 
-  if (!API) throw new Error("Velg IFC-filen i 'Lokal IFC-fil'-boksen over.");
+// 2. HENT ENKELTMODELL FRA VIEWER ELLER SKY
+async function fetchSingleModelIfc(modelId) {
+  const mObj = visibleModels.find(m => m.id === modelId);
+  const fallbackName = mObj?.name || `modell_${modelId.slice(0, 6)}.ifc`;
 
-  // TRINN B: Sjekk om getLoadedModel har blob direkte i vieweren (med kort timeout)
-  setStatus("Sjekker om 3D-vieweren har modellfilen i hurtigminnet...");
   const loaded = await safeApiCall(() => API.viewer.getLoadedModel(modelId), 3500, null);
   const meta = loaded?.file || {};
-  const fileName = String(meta.name || loaded?.name || visibleModels.find(m => m.id === modelId)?.name || "vegmodell.ifc");
+  const fileName = String(meta.name || loaded?.name || fallbackName);
 
+  // Sjekk hurtigbuffer i viewer først
   if (loaded?.blob) {
     if (loaded.blob instanceof Blob) {
       const txt = await loaded.blob.text();
@@ -312,71 +417,61 @@ async function fetchIfcText(modelId) {
     }
   }
 
-  // TRINN C: Prøv Sky-nedlasting med kort tidsfrist (så dispatcher.ts ikke krasjer)
-  setStatus("Spør Trimble Connect om tilgangstoken (3 sek frist)...");
-  if (!lastCloudAuth.token && typeof API.extension?.requestPermission === "function") {
-    const perm = await safeApiCall(() => API.extension.requestPermission("accesstoken"), 3500, null);
-    if (typeof perm === "string" && perm.length > 50) lastCloudAuth.token = perm;
-  }
-  if (!lastCloudAuth.token && typeof API.extension?.getPermission === "function") {
-    const perm2 = await safeApiCall(() => API.extension.getPermission("accesstoken"), 2500, null);
-    if (typeof perm2 === "string" && perm2.length > 50) lastCloudAuth.token = perm2;
+  const hasAuth = await ensureCloudAuth();
+  if (!hasAuth) {
+    throw new Error(`Mangler sky-token. Velg '${fileName}' i 'Lokale IFC-filer'-feltet over!`);
   }
 
-  if (!lastCloudAuth.token) {
-    // Åpner lokal filvelger automatisk for brukeren når TC blokkerer accesstoken
-    $("localIfcInput").focus();
-    throw new Error(
-      `Trimble Connect ga ikke ut sky-token til utvidelsen (timeout). Velg '${fileName}' direkte i det blå 'Lokal IFC-fil'-feltet rett over og trykk Kjør igjen!`
-    );
-  }
-
-  const project = await safeApiCall(() => API.project.getProject(), 3500, null);
-  const base = coreBase(project?.location);
-  const projectId = String(meta.projectId || project?.id || "");
   const fileId = String(meta.id || loaded?.id || modelId);
   const versionId = String(meta.versionId || loaded?.versionId || modelId);
-
-  lastCloudAuth = { token: lastCloudAuth.token, projectId, rootFolderId: project?.rootId || fileId, base };
+  if (meta.projectId) lastCloudAuth.projectId = String(meta.projectId);
+  if (meta.parentId) lastCloudAuth.parentFolderId = String(meta.parentId);
 
   const headers = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
-  setStatus(`Henter nedlastingslenke for ${fileName}...`);
+
+  // Hent også filmetadata for å finne eksakt parentId (mappen der IFC-filen ligger i TC!)
+  try {
+    const metaResp = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers });
+    if (metaResp.ok) {
+      const metaJson = await metaResp.json();
+      if (metaJson?.parentId) lastCloudAuth.parentFolderId = String(metaJson.parentId);
+      if (metaJson?.projectId) lastCloudAuth.projectId = String(metaJson.projectId);
+    }
+  } catch {}
 
   let downloadUrl = null;
   for (const url of [
-    `${base}/2.0/files/fs/${encodeURIComponent(versionId)}/downloadurl`,
-    `${base}/2.0/files/fs/${encodeURIComponent(fileId)}/downloadurl`,
-    `${base}/2.0/files/${encodeURIComponent(fileId)}`
+    `${lastCloudAuth.base}/2.0/files/fs/${encodeURIComponent(versionId)}/downloadurl`,
+    `${lastCloudAuth.base}/2.0/files/fs/${encodeURIComponent(fileId)}/downloadurl`,
+    `${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`
   ]) {
     try {
       const r = await fetch(url, { headers });
       if (r.ok) {
         const body = await r.json();
-        downloadUrl = body?.url || body?.downloadUrl || body?.signedUrl || null;
+        downloadUrl = findUrlInObject(body);
         if (downloadUrl) break;
       }
     } catch {}
   }
 
   if (!downloadUrl) {
-    throw new Error(`Kunne ikke hente nedlastingslenke fra skyen. Velg '${fileName}' i 'Lokal IFC-fil'-feltet over!`);
+    throw new Error(`Fant ikke nedlastingslenke for '${fileName}'. Velg den under 'Lokale IFC-filer'!`);
   }
 
-  setStatus(`Laster ned ${fileName} fra Trimble Connect...`);
   const resp = await fetch(downloadUrl);
-  if (!resp.ok) throw new Error(`Nedlasting feilet med HTTP ${resp.status}`);
-  const text = await resp.text();
-  return { text, fileName };
+  if (!resp.ok) throw new Error(`Nedlasting av ${fileName} feilet (HTTP ${resp.status})`);
+  return { text: await resp.text(), fileName };
 }
 
-// 3. RASK IFC STEP GEOMETRI-DEKODER (Støtter IFC4 IfcTriangulatedFaceSet + IFC2x3 IfcPolyLoop/IfcFace)
-function parseIfcTriangles(ifcText, allowedGlobalIds = null) {
+// 3. RASK IFC STEP GEOMETRI-DEKODER
+function parseIfcTriangles(ifcText) {
   const entities = new Map();
   const lines = ifcText.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line.charCodeAt(0) !== 35) continue; // '#'
+    if (line.charCodeAt(0) !== 35) continue;
     const eqIdx = line.indexOf("=");
     if (eqIdx === -1) continue;
     const id = parseInt(line.slice(1, eqIdx), 10);
@@ -388,7 +483,6 @@ function parseIfcTriangles(ifcText, allowedGlobalIds = null) {
     entities.set(id, { type, args });
   }
 
-  // Enhetsfaktor (sjekk om IFC er i millimeter eller meter)
   let unitScale = 1.0;
   for (const [, ent] of entities) {
     if (ent.type === "IFCSIUNIT" && ent.args.includes(".LENGTHUNIT.") && ent.args.includes(".MILLI.")) {
@@ -424,7 +518,6 @@ function parseIfcTriangles(ifcText, allowedGlobalIds = null) {
 
   const rawTriangles = [];
 
-  // A) IFC4: IFCTRIANGULATEDFACESET & IFCPOLYGONALFACESET
   for (const [, ent] of entities) {
     if (ent.type === "IFCTRIANGULATEDFACESET") {
       const refs = parseRefs(ent.args);
@@ -457,7 +550,6 @@ function parseIfcTriangles(ifcText, allowedGlobalIds = null) {
     }
   }
 
-  // B) IFC2x3 / IFC4 B-Rep: IFCPOLYLOOP
   if (rawTriangles.length === 0) {
     for (const [, ent] of entities) {
       if (ent.type === "IFCPOLYLOOP") {
@@ -482,7 +574,6 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
     const ux = p2[0] - p1[0], uy = p2[1] - p1[1], uz = p2[2] - p1[2];
     const vx = p3[0] - p1[0], vy = p3[1] - p1[1], vz = p3[2] - p1[2];
 
-    // Kryssprodukt (Normalvektor)
     const nx = uy * vz - uz * vy;
     const ny = uz * vx - ux * vz;
     const nz = ux * vy - uy * vx;
@@ -492,8 +583,6 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 
     const area = 0.5 * len;
     const absNz = Math.abs(nz) / len;
-
-    // Filtrer bort vertikale kanter og bratte skråninger (> 45% fall), så vi kun analyserer kjørebane/toppflater
     if (absNz < 0.90) continue;
 
     const horizMag = Math.hypot(nx / len, ny / len);
@@ -513,7 +602,7 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
   return results;
 }
 
-// 5. TEGN 2D FORHÅNDSKART I SIDEPANELET
+// 5. TEGN 2D FORHÅNDSKART
 let canvasTransform = null;
 
 function render2DPreview(triangles) {
@@ -571,7 +660,6 @@ function render2DPreview(triangles) {
   }
 }
 
-// Klikk i 2D-kartet for å zoome 3D-vieweren rett til det kritiske partiet
 $("heatmapCanvas").addEventListener("click", async (e) => {
   if (!analyzedTriangles.length || !canvasTransform || !API?.viewer) return;
   const rect = e.target.getBoundingClientRect();
@@ -598,8 +686,8 @@ $("heatmapCanvas").addEventListener("click", async (e) => {
   }
 });
 
-// 6. ALTERNATIV B: GENERER EKTE 3D HEATMAP-IFC MED FARGEKODEDE OVERLAY-FLATER
-function buildHeatmapIfcFile(triangles, zOffsetMeters, sourceName) {
+// 6. GENERER SAMLET 3D HEATMAP-IFC
+function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
   let id = 100;
   const nextId = () => ++id;
   const lines = [];
@@ -618,7 +706,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, sourceName) {
   const unitArea = add("IFCSIUNIT", "*,.AREAUNIT.,$,.SQUARE_METRE.");
   const unitAssign = add("IFCUNITASSIGNMENT", `(#${unitLen},#${unitArea})`);
 
-  const project = add("IFCPROJECT", `'0HeatmapProj0000000001',$,'Fallanalyse HeatMap - ${sourceName}',$,$,$,$,(#${context}),#${unitAssign}`);
+  const project = add("IFCPROJECT", `'0HeatmapProj0000000001',$,'Fallanalyse HeatMap - ${labelName}',$,$,$,$,(#${context}),#${unitAssign}`);
   const localPlacement = add("IFCLOCALPLACEMENT", `$,#${axisWorld}`);
   const site = add("IFCSITE", `'0HeatmapSite0000000001',$,'HeatMap_Site',$,$,#${localPlacement},$,$,.ELEMENT.,$,$,$,$,$`);
   add("IFCRELAGGREGATES", `'0HeatmapRel00000000001',$,$,$,#${project},(#${site})`);
@@ -671,7 +759,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, sourceName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('Heatmap_${sourceName}','${now}',('Fallanalyse HeatMap v3.1'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v3.2'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -681,12 +769,13 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, sourceName) {
   ].join("\r\n");
 }
 
-// 7. HOVEDFLYT: KJØR ANALYSE
+// 7. HOVEDFLYT: KJØR ANALYSE PÅ TVERS AV FLERE MODELLER
 async function runAnalysis() {
-  const modelId = $("modelSelect").value;
-  const hasLocalFile = Boolean($("localIfcInput")?.files?.[0]);
-  if (!modelId && !hasLocalFile) {
-    return setStatus("Velg en synlig modell eller last opp en lokal IFC-fil først.", "warn");
+  const selectedIds = getSelectedModelIds();
+  const localFiles = Array.from($("localIfcInput")?.files || []);
+
+  if (selectedIds.length === 0 && localFiles.length === 0) {
+    return setStatus("Kryss av for minst én synlig modell eller velg lokale IFC-filer først.", "warn");
   }
 
   $("btnAnalyze").disabled = true;
@@ -702,20 +791,40 @@ async function runAnalysis() {
     $("legWarn").textContent = `${critLimit.toFixed(1)}% - ${warnLimit.toFixed(1)}% (Advarsel - Lavt fall)`;
     $("legOk").textContent = `> ${warnLimit.toFixed(1)}% (Godkjent resulterende fall)`;
 
-    const { text, fileName } = await fetchIfcText(modelId);
+    let allRawTriangles = [];
+    const processedNames = [];
 
-    setStatus(`Dekoder 3D-trekantnett fra ${fileName}...`);
-    await new Promise(r => setTimeout(r, 30));
-
-    const rawTriangles = parseIfcTriangles(text);
-    if (!rawTriangles.length) {
-      throw new Error("Fant ingen 3D-trekanter i IFC-filen.");
+    if (localFiles.length > 0) {
+      for (let i = 0; i < localFiles.length; i++) {
+        const f = localFiles[i];
+        setStatus(`Leser lokal fil ${i + 1}/${localFiles.length}: ${f.name}...`);
+        await new Promise(r => setTimeout(r, 20));
+        const txt = await f.text();
+        const tris = parseIfcTriangles(txt);
+        allRawTriangles = allRawTriangles.concat(tris);
+        processedNames.push(f.name);
+      }
+      await ensureCloudAuth();
+    } else {
+      for (let i = 0; i < selectedIds.length; i++) {
+        const mid = selectedIds[i];
+        const mName = visibleModels.find(m => m.id === mid)?.name || mid;
+        setStatus(`Laster ned og dekoder modell ${i + 1}/${selectedIds.length}: ${mName}...`);
+        const { text, fileName } = await fetchSingleModelIfc(mid);
+        const tris = parseIfcTriangles(text);
+        allRawTriangles = allRawTriangles.concat(tris);
+        processedNames.push(fileName);
+      }
     }
 
-    setStatus(`Beregner resulterende fall for ${rawTriangles.length} trekanter...`);
+    if (!allRawTriangles.length) {
+      throw new Error("Fant ingen 3D-trekanter i de valgte IFC-modellene.");
+    }
+
+    setStatus(`Beregner resulterende fall for ${allRawTriangles.length.toLocaleString("nb-NO")} trekanter fra ${processedNames.length} modell(er)...`);
     await new Promise(r => setTimeout(r, 20));
 
-    analyzedTriangles = evaluateTriangles(rawTriangles, critLimit, warnLimit);
+    analyzedTriangles = evaluateTriangles(allRawTriangles, critLimit, warnLimit);
     if (!analyzedTriangles.length) {
       throw new Error("Fant ingen toppflater med helning < 35%.");
     }
@@ -734,19 +843,20 @@ async function runAnalysis() {
     $("areaYellow").textContent = `${aYel.toFixed(1)} m²`;
     $("valGreen").textContent = cGrn.toLocaleString("nb-NO");
     $("areaGreen").textContent = `${aGrn.toFixed(1)} m²`;
-    $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} trekanter`;
+    $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} trekanter (${processedNames.length} mod.)`;
 
     render2DPreview(analyzedTriangles);
 
-    setStatus("Genererer 3D HeatMap-IFC med fargesoner...");
-    generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, fileName.replace(/\.ifc$/i, ""));
+    const outFile = getCleanOutputFileName();
+    setStatus(`Bygger felles 3D HeatMap-IFC (${outFile})...`);
+    generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outFile);
 
     $("btnDownloadIfc").disabled = false;
-    if (lastCloudAuth.token && lastCloudAuth.projectId) {
+    if (lastCloudAuth.token) {
       $("btnUploadTc").disabled = false;
     }
 
-    setStatus(`Analyse ferdig! ${cRed} kritiske flater (${aRed.toFixed(0)} m²) funnet. Klar til 3D-eksport!`, "ok");
+    setStatus(`✅ Ferdig! ${processedNames.length} modell(er) analysert: ${cRed} kritiske flater (${aRed.toFixed(0)} m²).`, "ok");
   } catch (err) {
     console.error("Analysefeil:", err);
     setStatus(err.message || String(err), "err");
@@ -755,60 +865,127 @@ async function runAnalysis() {
   }
 }
 
-// 8. LAST NED 3D HEATMAP-IFC
+// 8. LAST NED 3D HEATMAP-IFC MED VALGT FILNAVN
 $("btnDownloadIfc").addEventListener("click", () => {
   if (!generatedIfcText) return;
+  const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
+  const outName = getCleanOutputFileName();
+  // Oppdater filnavnet i IFC-headeren hvis brukeren nettopp endret tekstfeltet
+  generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outName);
+
   const blob = new Blob([generatedIfcText], { type: "application/x-step" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const modelName = $("modelSelect").selectedOptions?.[0]?.textContent || "Vegmodell";
   a.href = url;
-  a.download = `HeatMap_Fallanalyse_${modelName.replace(/\.ifc$/i, "")}.ifc`;
+  a.download = outName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  setStatus("3D HeatMap-IFC lastet ned! Dra den inn i Trimble Connect for å se 3D-overlayet.", "ok");
+  setStatus(`💾 '${outName}' er lastet ned!`, "ok");
 });
 
-// 9. LAST OPP DIREKTE TIL TRIMBLE CONNECT PROSJEKTET
+// 9. ROBUST OPPLASTING TIL TRIMBLE CONNECT (Støtter både 2-steg presigned URL og direkte Multipart POST)
 $("btnUploadTc").addEventListener("click", async () => {
-  if (!generatedIfcText || !lastCloudAuth.token) return;
+  if (!generatedIfcText) return;
   $("btnUploadTc").disabled = true;
+
   try {
-    setStatus("Laster opp 3D HeatMap-IFC direkte til Trimble Connect...");
-    const modelName = ($("modelSelect").selectedOptions?.[0]?.textContent || "Vegmodell").replace(/\.ifc$/i, "");
-    const fileName = `HeatMap_Fallanalyse_${modelName}.ifc`;
+    const fileName = getCleanOutputFileName();
+    const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
+    generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, fileName);
 
-    const projResp = await fetch(`${lastCloudAuth.base}/2.0/projects/${encodeURIComponent(lastCloudAuth.projectId)}`, {
-      headers: { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" }
+    setStatus(`Forbereder opplasting av '${fileName}' til Trimble Connect...`);
+    await ensureCloudAuth();
+    if (!lastCloudAuth.token) throw new Error("Mangler tilgangstoken til Trimble Connect.");
+
+    const headersAuth = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
+
+    // Finn rotmappe hvis vi ikke allerede har mappen fra kildemodellen
+    if (!lastCloudAuth.parentFolderId && lastCloudAuth.projectId) {
+      try {
+        const projResp = await fetch(`${lastCloudAuth.base}/2.0/projects/${encodeURIComponent(lastCloudAuth.projectId)}`, { headers: headersAuth });
+        if (projResp.ok) {
+          const projData = await projResp.json();
+          lastCloudAuth.parentFolderId = projData?.rootId || projData?.rootFolderId || null;
+        }
+      } catch {}
+    }
+
+    const parentId = lastCloudAuth.parentFolderId;
+    if (!parentId) throw new Error("Fant ikke mappe-ID (parentId) i prosjektet. Bruk '2A. Last ned' i stedet.");
+
+    const fileBlob = new Blob([generatedIfcText], { type: "application/octet-stream" });
+    const uploadEndpoint = `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`;
+
+    // METODE A: Prøv direkte Multipart FormData POST (Standard i TC API v2.0 for enkeltfiler)
+    setStatus(`Sender '${fileName}' til TC-mappen...`);
+    const formData = new FormData();
+    formData.append("file", new File([fileBlob], fileName, { type: "application/octet-stream" }));
+
+    const multiResp = await fetch(uploadEndpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${lastCloudAuth.token}` },
+      body: formData
     });
-    const projData = await projResp.json();
-    const parentId = projData?.rootId || lastCloudAuth.rootFolderId;
 
-    const initResp = await fetch(`${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`, {
+    if (multiResp.ok) {
+      const multiData = await multiResp.json().catch(() => ({}));
+      const maybePresignedUrl = findUrlInObject(multiData);
+
+      // Hvis serveren likevel svarte med en presigned uploadUrl, fullfører vi PUT-steget:
+      if (maybePresignedUrl && !multiData?.id && !multiData?.versionId) {
+        const putResp = await fetch(maybePresignedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: fileBlob
+        });
+        if (!putResp.ok) throw new Error(`Sky-lagring (PUT) feilet med HTTP ${putResp.status}`);
+      }
+
+      console.log("TC Upload suksess (Multipart):", multiData);
+      setStatus(`✅ '${fileName}' er lagret direkte i Trimble Connect-prosjektet!`, "ok");
+      return;
+    }
+
+    // METODE B: 2-trinns JSON init -> PUT presigned URL -> Commit
+    const initResp = await fetch(uploadEndpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lastCloudAuth.token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json"
+        ...headersAuth,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({ name: fileName })
+      body: JSON.stringify({ name: fileName, size: fileBlob.size })
     });
 
-    if (!initResp.ok) throw new Error(`Kunne ikke starte opplasting (HTTP ${initResp.status}). Bruk '2A. Last ned' i stedet.`);
-    const initData = await initResp.json();
-    const uploadUrl = initData?.uploadUrl || initData?.url || initData?.contents?.[0]?.uploadUrl;
-    if (!uploadUrl) throw new Error("Mottok ingen opplastings-URL. Bruk '2A. Last ned' i stedet.");
+    const initData = await initResp.json().catch(() => ({}));
+    console.log("TC Upload init-svar:", initData);
+
+    // Sjekk om filen allerede ble opprettet direkte, eller om vi fikk en URL hvor som helst i JSON-treet
+    const uploadUrl = findUrlInObject(initData);
+    if (!uploadUrl) {
+      const keys = Object.keys(initData || {}).join(", ") || `HTTP ${initResp.status}`;
+      throw new Error(`TC-serveren avviste direkte opplasting (${keys}). Bruk '2A. Last ned' i stedet.`);
+    }
 
     const putResp = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": "application/octet-stream" },
-      body: new Blob([generatedIfcText], { type: "application/octet-stream" })
+      body: fileBlob
     });
 
-    if (!putResp.ok) throw new Error(`Filopplasting feilet (HTTP ${putResp.status})`);
-    setStatus(`✅ '${fileName}' er lagret i prosjektets rotmappe i Trimble Connect! Skru den på i Explorer.`, "ok");
+    if (!putResp.ok) throw new Error(`Opplasting av fildata feilet (HTTP ${putResp.status})`);
+
+    if (initData?.uploadId) {
+      await fetch(`${lastCloudAuth.base}/2.0/files/fs/upload/${encodeURIComponent(initData.uploadId)}/commit`, {
+        method: "POST",
+        headers: { ...headersAuth, "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      }).catch(() => {});
+    }
+
+    setStatus(`✅ '${fileName}' er lagret i Trimble Connect-prosjektet!`, "ok");
   } catch (err) {
-    setStatus(err.message, "err");
+    console.error("Opplastingsfeil:", err);
+    setStatus(err.message || String(err), "err");
   } finally {
     $("btnUploadTc").disabled = false;
   }

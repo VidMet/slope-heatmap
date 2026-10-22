@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v4.0</title>
+  <title>Fallanalyse HeatMap v4.1</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -112,7 +112,7 @@
     <img src="norconsult-logo-black.png" alt="Norconsult">
   </div>
   <div class="app-title">
-    <b>Fallanalyse HeatMap v4.0</b>
+    <b>Fallanalyse HeatMap v4.1</b>
     <span>Norconsult Norge</span>
     <em>Developed by Norconsult Norge AS, AI-assisted development. Contact: Vidar.Metveit@norconsult.com</em>
   </div>
@@ -285,7 +285,7 @@ function findUrlInObject(value) {
 }
 
 // ============================================================================
-// DROPDOWN OG FILNAVN-LOGIKK (SAMME STIL SOM MENGDEUTTAK R761)
+// DROPDOWN OG FILNAVN-LOGIKK
 // ============================================================================
 document.addEventListener('click', (e) => {
   const dropdown = $('modelSelectDropdown');
@@ -644,7 +644,6 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
     const cy = (p1[1] + p2[1] + p3[1]) / 3;
     const cz = (p1[2] + p2[2] + p3[2]) / 3;
 
-    // Enkel lysberegning basert på normalvektor for ekte 3D-dybdefølelse
     const shade = Math.max(0.78, Math.min(1.08, 0.85 + ((nx / len) * 0.12 + (ny / len) * 0.12)));
 
     results.push({ p1, p2, p3, slopePct, area, category, shade, center: { x: cx, y: cy, z: cz } });
@@ -656,17 +655,17 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 // INTERAKTIV 3D & 2D MOTOR (ORBIT, PAN, ZOOM, Z-SKALA OG KLIKK-DETEKSJON)
 // ============================================================================
 const viewerState = {
-  mode: "3d",         // '3d' eller '2d'
-  yaw: -0.65,         // Horisontal rotasjon (rad)
-  pitch: 0.72,        // Vertikal tilt (rad)
+  mode: "3d",
+  yaw: -0.65,
+  pitch: 0.72,
   zoom: 1.0,
   panX: 0,
   panY: 0,
-  zScale: 1,          // 1x, 3x, 5x høydeoverdrivelse
+  zScale: 1,
   wireframe: true,
   bounds: null,
   selectedTri: null,
-  projectedCache: [], // For lynrask museklikk-picking
+  projectedCache: [],
   dragging: false,
   dragButton: 0,
   startX: 0,
@@ -715,12 +714,10 @@ function projectPoint(pt, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult)
   const dy = pt[1] - b.cy;
   const dz = (pt[2] - b.cz) * zMult;
 
-  // Roter rundt Z-aksen (Yaw)
   const x1 = dx * cosY - dy * sinY;
   const y1 = dx * sinY + dy * cosY;
   const z1 = dz;
 
-  // Tilt kameraet (Pitch:Når pitch = 90 grader ser vi rett ned i 2D plan)
   const y2 = y1 * sinP - z1 * cosP;
   const depth = y1 * cosP + z1 * sinP;
 
@@ -748,7 +745,6 @@ function renderViewport() {
   ctx.save();
   ctx.scale(dpr, dpr);
 
-  // Lys, teknisk bakgrunn med diskret rutenett
   ctx.fillStyle = "#eef2f6";
   ctx.fillRect(0, 0, w, h);
 
@@ -763,14 +759,14 @@ function renderViewport() {
   const halfW = w / 2;
   const halfH = h / 2;
 
-  const yaw = viewerState.mode === "2d" ? viewerState.yaw : viewerState.yaw;
+  const yaw = viewerState.yaw;
   const pitch = viewerState.mode === "2d" ? (Math.PI / 2) : viewerState.pitch;
   const zMult = viewerState.mode === "2d" ? 1 : viewerState.zScale;
 
   const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
   const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
 
-  // Tegn et 3D-bunnrutenett under modellen for romfølelse
+  // 3D-bunnrutenett under modellen
   ctx.strokeStyle = "#d5dde6";
   ctx.lineWidth = 1;
   const gridSteps = 6;
@@ -789,14 +785,12 @@ function renderViewport() {
   }
   ctx.stroke();
 
-  // Projiser alle trekanter og sorter etter dybde (Painter's Algorithm)
   const projected = new Array(analyzedTriangles.length);
   for (let i = 0; i < analyzedTriangles.length; i++) {
     const t = analyzedTriangles[i];
     const v1 = projectPoint(t.p1, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
     const v2 = projectPoint(t.p2, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
     const v3 = projectPoint(t.p3, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
-    // Sikrer at kritiske røde flater tegnes ørlite høyere i prioritering ved lik dybde
     const prioBoost = t.category === "red" ? 0.02 : t.category === "yellow" ? 0.01 : 0;
     const depth = (v1.depth + v2.depth + v3.depth) / 3 - prioBoost;
     projected[i] = { t, v1, v2, v3, depth };
@@ -806,16 +800,15 @@ function renderViewport() {
   viewerState.projectedCache = projected;
 
   const baseColors = {
-    red:    [225, 29, 72],   // Kritisk rød
-    yellow: [245, 158, 11],  // Advarsel oransje/gul
-    green:  [22, 163, 74]    // Godkjent grønn
+    red:    [225, 29, 72],
+    yellow: [245, 158, 11],
+    green:  [22, 163, 74]
   };
 
   ctx.lineJoin = "round";
 
   for (let i = 0; i < projected.length; i++) {
     const { t, v1, v2, v3 } = projected[i];
-    // Frustum-culling (hopp over trekanter helt utenfor skjermen)
     if (
       (v1.sx < -50 && v2.sx < -50 && v3.sx < -50) ||
       (v1.sx > w + 50 && v2.sx > w + 50 && v3.sx > w + 50) ||
@@ -849,7 +842,6 @@ function renderViewport() {
     }
   }
 
-  // Tegn tydelig blå/hvit markering rundt valgt trekant
   if (viewerState.selectedTri) {
     const sel = projected.find(p => p.t === viewerState.selectedTri);
     if (sel) {
@@ -872,7 +864,7 @@ function renderViewport() {
     }
   }
 
-  // Tegn et lite 3D-kompass/aksesystem oppe til høyre i vieweren
+  // 3D-kompass oppe til høyre
   const ox = w - 42, oy = 42, axisLen = 24;
   const origin2d = { sx: ox, sy: oy };
   const axes = [
@@ -901,7 +893,6 @@ function renderViewport() {
   ctx.restore();
 }
 
-// Punkt-i-trekant-sjekk i skjermkoordinater for eksakt klikk i 3D
 function pointInTri2D(px, py, v1, v2, v3) {
   const d1 = (px - v2.sx) * (v1.sy - v2.sy) - (v1.sx - v2.sx) * (py - v2.sy);
   const d2 = (px - v3.sx) * (v2.sy - v3.sy) - (v2.sx - v3.sx) * (py - v3.sy);
@@ -911,7 +902,6 @@ function pointInTri2D(px, py, v1, v2, v3) {
   return !(hasNeg && hasPos);
 }
 
-// Musehendelser for 3D Orbit, Pan og Zoom
 const canvasEl = $("heatmapCanvas");
 canvasEl.addEventListener("contextmenu", e => e.preventDefault());
 
@@ -951,13 +941,11 @@ canvasEl.addEventListener("pointerup", async e => {
   viewerState.dragging = false;
   canvasEl.releasePointerCapture(e.pointerId);
 
-  // Hvis det var et rent klikk (ikke dra-bevegelse): Finn trekanten under musepekeren!
   if (!viewerState.moved && e.button === 0 && viewerState.projectedCache.length) {
     const rect = canvasEl.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
 
-    // Gå baklengs gjennom projectedCache (fra nærmest kamera til lengst bak)
     let hit = null;
     for (let i = viewerState.projectedCache.length - 1; i >= 0; i--) {
       const item = viewerState.projectedCache[i];
@@ -995,7 +983,6 @@ canvasEl.addEventListener("wheel", e => {
   const newZoom = Math.max(0.2, Math.min(35.0, viewerState.zoom * factor));
   const ratio = newZoom / viewerState.zoom;
 
-  // Zoom mot musepekeren!
   viewerState.panX = mx - (mx - viewerState.panX) * ratio;
   viewerState.panY = my - (my - viewerState.panY) * ratio;
   viewerState.zoom = newZoom;
@@ -1005,7 +992,6 @@ canvasEl.addEventListener("wheel", e => {
 
 window.addEventListener("resize", () => requestAnimationFrame(renderViewport));
 
-// Verktøylinjeknapper i 3D/2D-vieweren
 $("btnMode3D").addEventListener("click", () => {
   viewerState.mode = "3d";
   viewerState.pitch = 0.68;
@@ -1110,7 +1096,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.0'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.1'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -1227,6 +1213,48 @@ $("btnDownloadIfc").addEventListener("click", () => {
   setStatus(`Filen '${outName}' ble lastet ned!`, "ok");
 });
 
+// Hjelpefunksjon som finner riktig mappe-ID (parentId) i Trimble Connect-prosjektet
+async function resolveTargetFolderId(headersAuth) {
+  if (lastCloudAuth.parentFolderId) return lastCloudAuth.parentFolderId;
+
+  const selectedIds = getSelectedModelIds();
+  for (const mid of selectedIds) {
+    const loaded = await safeApiCall(() => API.viewer.getLoadedModel(mid), 3500, null);
+    const meta = loaded?.file || {};
+    if (meta.parentId) return String(meta.parentId);
+
+    const fileId = String(meta.id || loaded?.id || mid);
+    try {
+      const r = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers: headersAuth });
+      if (r.ok) {
+        const d = await r.json();
+        if (d?.parentId) {
+          lastCloudAuth.parentFolderId = String(d.parentId);
+          if (d?.projectId) lastCloudAuth.projectId = String(d.projectId);
+          return lastCloudAuth.parentFolderId;
+        }
+      }
+    } catch {}
+  }
+
+  if (lastCloudAuth.projectId) {
+    for (const ver of ["2.0", "2.1"]) {
+      try {
+        const r = await fetch(`${lastCloudAuth.base}/${ver}/projects/${encodeURIComponent(lastCloudAuth.projectId)}`, { headers: headersAuth });
+        if (r.ok) {
+          const d = await r.json();
+          const root = d?.rootId || d?.rootFolderId || d?.rootFolder?.id;
+          if (root) {
+            lastCloudAuth.parentFolderId = String(root);
+            return lastCloudAuth.parentFolderId;
+          }
+        }
+      } catch {}
+    }
+  }
+  return null;
+}
+
 $("btnUploadTc").addEventListener("click", async () => {
   if (!generatedIfcText) return;
   $("btnUploadTc").disabled = true;
@@ -1236,70 +1264,102 @@ $("btnUploadTc").addEventListener("click", async () => {
     const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
     generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, fileName);
 
-    setStatus(`Laster opp '${fileName}' til Trimble Connect...`, "warn");
+    setStatus(`Finner prosjektmappe i Trimble Connect...`, "warn");
     await ensureCloudAuth();
     if (!lastCloudAuth.token) throw new Error("Mangler tilgangstoken til Trimble Connect.");
 
     const headersAuth = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
-
-    if (!lastCloudAuth.parentFolderId && lastCloudAuth.projectId) {
-      try {
-        const projResp = await fetch(`${lastCloudAuth.base}/2.0/projects/${encodeURIComponent(lastCloudAuth.projectId)}`, { headers: headersAuth });
-        if (projResp.ok) {
-          const projData = await projResp.json();
-          lastCloudAuth.parentFolderId = projData?.rootId || projData?.rootFolderId || null;
-        }
-      } catch {}
-    }
-
-    const parentId = lastCloudAuth.parentFolderId;
-    if (!parentId) throw new Error("Fant ikke mappe-ID i prosjektet. Bruk '2A. Last ned IFC'.");
+    const parentId = await resolveTargetFolderId(headersAuth);
+    if (!parentId) throw new Error("Fant ikke mappe-ID (parentId) i prosjektet. Bruk '2A. Last ned IFC'.");
 
     const fileBlob = new Blob([generatedIfcText], { type: "application/octet-stream" });
-    const uploadEndpoint = `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`;
+    const fileObj = new File([fileBlob], fileName, { type: "application/octet-stream" });
+    const diagnostics = [];
 
-    const formData = new FormData();
-    formData.append("file", new File([fileBlob], fileName, { type: "application/octet-stream" }));
+    setStatus(`Laster opp '${fileName}' til mappe ${parentId}...`, "warn");
 
-    const multiResp = await fetch(uploadEndpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${lastCloudAuth.token}` },
-      body: formData
-    });
+    // STRATEGI 1: TC v2.0 Multipart med parentId både i URL og FormData
+    try {
+      const fd = new FormData();
+      fd.append("parentId", parentId);
+      fd.append("parentType", "FOLDER");
+      fd.append("files", fileObj, fileName);
+      fd.append("file", fileObj, fileName);
 
-    if (multiResp.ok) {
-      const multiData = await multiResp.json().catch(() => ({}));
-      const maybePresignedUrl = findUrlInObject(multiData);
-      if (maybePresignedUrl && !multiData?.id && !multiData?.versionId) {
-        const putResp = await fetch(maybePresignedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: fileBlob
-        });
-        if (!putResp.ok) throw new Error(`Sky-lagring (PUT) feilet med HTTP ${putResp.status}`);
+      const r1 = await fetch(
+        `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`,
+        { method: "POST", headers: { Authorization: `Bearer ${lastCloudAuth.token}` }, body: fd }
+      );
+      const b1 = await r1.json().catch(() => null);
+      diagnostics.push({ strategy: "1-multipart-fs-upload", status: r1.status, body: b1 });
+
+      if (r1.ok) {
+        const putUrl = findUrlInObject(b1);
+        if (putUrl && !b1?.id && !b1?.versionId && !Array.isArray(b1)) {
+          const pr = await fetch(putUrl, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: fileBlob });
+          if (pr.ok) {
+            setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+            return;
+          }
+        } else {
+          setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+          return;
+        }
       }
-      setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
-      return;
+    } catch (e) { diagnostics.push({ strategy: "1-error", error: e.message }); }
+
+    // STRATEGI 2: TC v2.0 Initier opplasting med ulike JSON-strukturer som app21 bruker
+    const initPayloads = [
+      { url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`, body: { name: fileName, parentId, parentType: "FOLDER" } },
+      { url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`, body: { files: [{ name: fileName, size: fileBlob.size }] } },
+      { url: `${lastCloudAuth.base}/2.0/files/fs/upload`, body: { parentId, parentType: "FOLDER", contents: [{ name: fileName, size: fileBlob.size }] } },
+      { url: `${lastCloudAuth.base}/2.0/files/fs/${encodeURIComponent(parentId)}/uploadurl?name=${encodeURIComponent(fileName)}`, method: "GET" }
+    ];
+
+    for (const attempt of initPayloads) {
+      try {
+        const resp = await fetch(attempt.url, {
+          method: attempt.method || "POST",
+          headers: attempt.method === "GET" ? headersAuth : { ...headersAuth, "Content-Type": "application/json" },
+          body: attempt.body ? JSON.stringify(attempt.body) : undefined
+        });
+        const data = await resp.json().catch(() => null);
+        diagnostics.push({ strategy: attempt.url, status: resp.status, body: data });
+
+        if (!resp.ok) continue;
+
+        const uploadUrl = findUrlInObject(data);
+        if (uploadUrl) {
+          const putResp = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: fileBlob
+          });
+          if (putResp.ok) {
+            const upId = data?.uploadId || data?.id || data?.contents?.[0]?.uploadId;
+            if (upId) {
+              await fetch(`${lastCloudAuth.base}/2.0/files/fs/upload/${encodeURIComponent(upId)}/commit`, {
+                method: "POST",
+                headers: { ...headersAuth, "Content-Type": "application/json" },
+                body: JSON.stringify({ parentId, parentType: "FOLDER", name: fileName })
+              }).catch(() => {});
+            }
+            setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+            return;
+          }
+        } else if (data?.id || data?.versionId) {
+          setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+          return;
+        }
+      } catch (e) {
+        diagnostics.push({ strategy: attempt.url, error: e.message });
+      }
     }
 
-    const initResp = await fetch(uploadEndpoint, {
-      method: "POST",
-      headers: { ...headersAuth, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: fileName, size: fileBlob.size })
-    });
-
-    const initData = await initResp.json().catch(() => ({}));
-    const uploadUrl = findUrlInObject(initData);
-    if (!uploadUrl) throw new Error("TC avviste direkte opplasting. Bruk '2A. Last ned IFC'.");
-
-    const putResp = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: fileBlob
-    });
-    if (!putResp.ok) throw new Error(`Opplasting feilet (HTTP ${putResp.status})`);
-
-    setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+    console.error("TC UPLOAD DIAGNOSTIKK:", diagnostics);
+    const firstStatus = diagnostics.find(d => d.status)?.status || "Ukjent";
+    const firstMsg = diagnostics.find(d => d.body?.message || d.body?.errorcode)?.body?.message || `HTTP ${firstStatus}`;
+    throw new Error(`TC avviste opplasting (${firstMsg}). Se Console (F12) eller bruk '2A. Last ned IFC'.`);
   } catch (err) {
     setStatus(err.message || String(err), "error");
   } finally {

@@ -2,185 +2,225 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v3.2 (Flervalg & 3D IFC-Overlay)</title>
+  <title>Fallanalyse HeatMap v4.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
-
     :root {
-      --bg:        #0d1117;
-      --surface:   #161b22;
-      --surface2:  #1f2937;
-      --border:    #30363d;
-      --ink:       #e6edf3;
-      --muted:     #7d8590;
-      --green:     #3fb950;
-      --yellow:    #d29922;
-      --orange:    #f0883e;
-      --red:       #f85149;
-      --blue:      #58a6ff;
-      --mono:      'JetBrains Mono', monospace;
-      --sans:      'Syne', sans-serif;
+      --bg: #f3f4f6; --surface: #ffffff; --surface2: #e5e7eb; --border: #d1d5db;
+      --ink: #111827; --muted: #6b7280; --green: #166534; --red: #b91c1c; --blue: #1d4ed8;
+      --blue-dim: #dbeafe; --mono: 'JetBrains Mono', monospace; --sans: 'Syne', sans-serif;
+      --ok: #22a06b; --warn: #f79009; --bad: #d92d20;
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--ink); font-family: var(--sans); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    
-    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
-    .header-title h1 { font-size: 16px; font-weight: 800; margin: 0; letter-spacing: -.3px; }
-    .header-title p { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+    html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); height: 100%; margin: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; min-width: 380px; }
 
-    #statusBar { font-family: var(--mono); font-size: 11px; padding: 7px 16px; background: #0d2044; color: var(--blue); border-bottom: 1px solid #1a3a5c; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #statusBar.ok { background: #122d1f; color: var(--green); border-bottom-color: #1f4f34; }
-    #statusBar.warn { background: #33240b; color: var(--orange); border-bottom-color: #5c4013; }
-    #statusBar.err { background: #381214; color: var(--red); border-bottom-color: #6e2126; }
+    /* HEADER STYLING FRA MENGDEUTTAK R761 */
+    .topbar {
+      height: 92px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 18px; padding: 10px 18px; flex: 0 0 auto;
+    }
+    .logo-card {
+      width: 145px; height: 68px; border: 1px solid var(--border); border-radius: 12px;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(16,24,40,.08); overflow: hidden; flex-shrink: 0;
+    }
+    .logo-card img { max-width: 128px; max-height: 50px; object-fit: contain; }
+    .app-title { display: flex; flex-direction: column; line-height: 1.2; }
+    .app-title b { font-size: 18px; color: #0050b5; }
+    .app-title span { font-size: 14px; font-weight: 600; }
+    .app-title em { font-size: 12px; color: #667085; font-style: normal; }
 
-    main { flex: 1; padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-    
-    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-    .panel-label { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .status { margin-left: auto; display: flex; align-items: center; gap: 7px; color: #667085; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #98a2b3; flex-shrink: 0; }
+    .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.error { background: var(--bad); }
 
-    /* Multi-select liste for modeller */
-    .model-list-actions { display: flex; gap: 8px; font-size: 10px; font-family: var(--mono); }
-    .model-list-actions a { color: var(--blue); cursor: pointer; text-decoration: none; }
-    .model-list-actions a:hover { text-decoration: underline; }
-    
-    .model-checklist { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; max-height: 125px; overflow-y: auto; padding: 6px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
-    .model-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; font-family: var(--mono); font-size: 11px; cursor: pointer; user-select: none; }
-    .model-item:hover { background: rgba(88, 166, 255, 0.1); }
-    .model-item input[type=checkbox] { accent-color: var(--blue); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
-    .model-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); background: var(--bg); white-space: nowrap; }
+    .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; transition: opacity .15s, transform .1s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn:not(:disabled):hover { opacity: .85; }
+    .btn-primary { background: var(--blue); color: #ffffff; }
+    .btn-secondary { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); }
+    .btn-secondary:not(:disabled):hover { background: var(--border); }
+    .btn-success { background: var(--green); color: #ffffff; }
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-    .field { margin-bottom: 10px; }
-    .grid-2 .field { margin-bottom: 0; }
-    .field label { font-size: 10px; color: var(--muted); font-family: var(--mono); display: block; margin-bottom: 4px; }
-    .field input, .field select { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); padding: 7px 9px; border-radius: 6px; width: 100%; font-family: var(--mono); font-size: 12px; outline: none; }
-    .field input:focus { border-color: var(--blue); }
+    #actionBar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+    #filterBar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; gap: 14px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+    #mappingBar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 7px 16px; display: flex; gap: 14px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
 
-    .btn { font-family: var(--sans); font-size: 12px; font-weight: 700; padding: 9px 14px; border-radius: 6px; border: none; cursor: pointer; transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-    .btn:disabled { opacity: .35; cursor: not-allowed; }
-    .btn:not(:disabled):hover { filter: brightness(1.12); }
-    .btn-primary { background: var(--blue); color: #000; margin-bottom: 8px; }
-    .btn-colorize { background: #1a3a22; color: var(--green); border: 1px solid #2a5a32; margin-bottom: 8px; }
-    .btn-upload { background: #26213a; color: #c4b5fd; border: 1px solid #4c3d75; }
-    .btn-ghost { background: var(--surface2); color: var(--ink); border: 1px solid var(--border); width: auto; padding: 6px 12px; }
+    .filter-group { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 140px; }
+    .filter-group label { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+    .filter-group input, .filter-group select { font-family: var(--mono); font-size: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; flex: 1; min-width: 0; outline: none; }
+    .filter-group input:focus { border-color: var(--blue); }
 
-    .file-box { background: #121820; border: 1px dashed #3b82f6; border-radius: 8px; padding: 9px 10px; margin-bottom: 12px; }
-    .file-box.loaded { border-color: var(--green); background: #0f2419; }
-    .file-box-title { font-size: 11px; font-weight: 700; color: var(--blue); margin-bottom: 3px; display: flex; justify-content: space-between; align-items: center; }
-    .file-box.loaded .file-box-title { color: var(--green); }
-    .file-box input[type=file] { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 100%; margin-top: 4px; }
+    .multi-select { position: relative; flex: 1; min-width: 170px; user-select: none; }
+    .multi-select.disabled { opacity: 0.4; pointer-events: none; }
+    .multi-select-header { font-family: var(--mono); font-size: 12px; background: var(--bg); color: var(--ink); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .multi-select-header::after { content: '▼'; font-size: 10px; margin-left: 8px; color: var(--muted); }
+    .multi-select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; max-height: 240px; overflow-y: auto; border-radius: 4px; margin-top: 4px; }
+    .multi-select-dropdown label { display: flex; align-items: center; padding: 8px 10px; cursor: pointer; font-size: 11px; font-family: var(--mono); color: var(--ink); border-bottom: 1px solid var(--surface2); }
+    .multi-select-dropdown label:last-child { border-bottom: none; }
+    .multi-select-dropdown label:hover { background: var(--bg); }
+    .multi-select-dropdown input[type="checkbox"] { margin-right: 8px; cursor: pointer; }
 
-    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
-    .stat-label { font-size: 9px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
-    .stat-value { font-size: 16px; font-weight: 800; }
-    .stat-sub { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-top: 3px; }
+    main { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 
-    .canvas-wrap { position: relative; background: #090d12; border: 1px solid var(--border); border-radius: 8px; height: 200px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    canvas { width: 100%; height: 100%; cursor: crosshair; display: block; }
-    .canvas-hint { position: absolute; pointer-events: none; font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; padding: 12px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex-shrink: 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .stat-left { display: flex; flex-direction: column; }
+    .stat-label { font-size: 10px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; font-weight: 700; }
+    .stat-sub { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-top: 2px; }
+    .stat-value { font-size: 18px; font-weight: 800; font-family: var(--mono); }
 
-    .legend { display: flex; flex-direction: column; gap: 7px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
-    .legend-item { display: flex; align-items: center; gap: 8px; }
-    .color-bar { height: 8px; width: 42px; border-radius: 2px; flex-shrink: 0; }
+    /* 3D / 2D INTERAKTIV VIEWER PANEL */
+    .viewer-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; flex: 1; min-height: 310px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .viewer-toolbar { padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .viewer-toolbar-title { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--blue); margin-right: auto; display: flex; align-items: center; gap: 8px; }
+    .tool-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); cursor: pointer; }
+    .tool-btn:hover { background: var(--surface2); }
+    .tool-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    .canvas-container { position: relative; flex: 1; background: #eef2f6; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
+    canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+    canvas:active { cursor: grabbing; }
+
+    .viewer-hud { position: absolute; left: 10px; bottom: 10px; background: rgba(255,255,255,0.92); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-family: var(--mono); font-size: 10px; color: var(--ink); pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,0.06); line-height: 1.5; }
+    .viewer-legend { position: absolute; right: 10px; bottom: 10px; background: rgba(255,255,255,0.92); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-family: var(--mono); font-size: 10px; color: var(--ink); pointer-events: none; display: flex; gap: 10px; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    .leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+    .empty-overlay { position: absolute; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; max-width: 420px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .empty-overlay h3 { font-size: 14px; color: var(--blue); margin-bottom: 8px; }
+    .empty-overlay p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    @media(max-width:760px) {
+      .topbar { height: auto; padding: 8px; flex-wrap: wrap; }
+      .logo-card { width: 120px; height: 58px; }
+      .app-title b { font-size: 15px; }
+      .app-title span { font-size: 12px; }
+      .app-title em { display: none; }
+      .stats-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="header-title">
-    <h1>Fallanalyse HeatMap</h1>
-    <p>v3.2 · Flervalg &amp; 3D IFC-Overlay</p>
+<header class="topbar">
+  <div class="logo-card">
+    <img src="norconsult-logo-black.png" alt="Norconsult">
   </div>
-  <button class="btn btn-ghost" id="btnSync">🔄 Oppdater</button>
+  <div class="app-title">
+    <b>Fallanalyse HeatMap v4.0</b>
+    <span>Norconsult Norge</span>
+    <em>Developed by Norconsult Norge AS, AI-assisted development. Contact: Vidar.Metveit@norconsult.com</em>
+  </div>
+  <div class="status">
+    <span id="statusText">Starter…</span>
+    <span id="statusDot" class="dot"></span>
+  </div>
 </header>
 
-<div id="statusBar">Venter på tilkobling til viewer...</div>
+<div id="actionBar">
+  <button class="btn btn-secondary" id="btnSync">🔄 Oppdater modeller</button>
+  <button class="btn btn-primary" id="btnAnalyze">▶ 1. Kjør Fallanalyse</button>
+  <div style="flex-grow: 1;"></div>
+  <label class="btn btn-secondary" style="cursor:pointer; margin:0;" title="Velg lokale IFC-filer hvis sky-nedlasting ikke ønskes">
+    📂 Lokale IFC (<span id="localCountBadge">0</span>)
+    <input type="file" id="localIfcInput" accept=".ifc" multiple style="display:none"/>
+  </label>
+  <button class="btn btn-success" id="btnDownloadIfc" disabled>💾 2A. Last ned IFC</button>
+  <button class="btn btn-primary" id="btnUploadTc" disabled>☁️ 2B. Lagre til TC</button>
+</div>
+
+<div id="filterBar">
+  <div class="filter-group" style="flex: 2; min-width: 220px;">
+    <label>Modell-utvalg:</label>
+    <div class="multi-select" id="multiSelectContainer">
+      <div class="multi-select-header" id="modelSelectHeader">Henter modeller...</div>
+      <div class="multi-select-dropdown" id="modelSelectDropdown"></div>
+    </div>
+  </div>
+  <div class="filter-group" style="flex: 2; min-width: 220px;">
+    <label for="outputFileName">Filnavn (.ifc):</label>
+    <input type="text" id="outputFileName" value="HeatMap_Fallanalyse.ifc"/>
+  </div>
+</div>
+
+<div id="mappingBar">
+  <div class="filter-group">
+    <label for="critLimit" style="color:var(--ink);">Kritisk (&lt; %):</label>
+    <input type="number" id="critLimit" value="1.5" min="0.1" max="10" step="0.1"/>
+  </div>
+  <div class="filter-group">
+    <label for="warnLimit" style="color:var(--ink);">Advarsel (&lt; %):</label>
+    <input type="number" id="warnLimit" value="2.0" min="0.2" max="15" step="0.1"/>
+  </div>
+  <div class="filter-group">
+    <label for="zOffsetMm" style="color:var(--ink);">Z-offset (mm):</label>
+    <input type="number" id="zOffsetMm" value="5" min="1" max="100" step="1"/>
+  </div>
+</div>
 
 <main>
-  <div class="panel">
-    <div class="panel-label">
-      <span>1. Velg synlige vegmodeller (<span id="selectedCountLabel">0</span> valgt):</span>
-      <div class="model-list-actions">
-        <a id="linkSelectAll">Velg alle</a> · <a id="linkSelectNone">Velg ingen</a>
-      </div>
-    </div>
-    
-    <div class="model-checklist" id="modelChecklist">
-      <div style="color:var(--muted); font-family:var(--mono); font-size:11px; padding:4px;">– henter synlige modeller... –</div>
-    </div>
-
-    <div class="file-box" id="localFileBox">
-      <div class="file-box-title">
-        <span id="localFileTitle">📂 Lokale IFC-filer (Valgfri reserve, støtter flervalg)</span>
-        <span id="localFileBadge" style="font-family:var(--mono);font-size:10px;">Valgfri</span>
-      </div>
-      <input type="file" id="localIfcInput" accept=".ifc" multiple/>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label>Kritisk grense (%):</label>
-        <input type="number" id="critLimit" value="1.5" min="0.1" max="10" step="0.1"/>
-      </div>
-      <div class="field">
-        <label>Advarsel grense (%):</label>
-        <input type="number" id="warnLimit" value="2.0" min="0.2" max="15" step="0.1"/>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label>Z-offset 3D-overlay (mm):</label>
-        <input type="number" id="zOffsetMm" value="5" min="1" max="100" step="1"/>
-      </div>
-      <div class="field">
-        <label>Filnavn for 3D HeatMap (.ifc):</label>
-        <input type="text" id="outputFileName" value="HeatMap_Fallanalyse.ifc" placeholder="Navn_paa_fil.ifc"/>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" id="btnAnalyze">▶ 1. Hent geometri &amp; Kjør Fallanalyse</button>
-    <button class="btn btn-colorize" id="btnDownloadIfc" disabled>💾 2A. Last ned 3D HeatMap (.ifc)</button>
-    <button class="btn btn-upload" id="btnUploadTc" disabled>☁️ 2B. Lagre HeatMap-IFC rett til TC-prosjektet</button>
-  </div>
-
   <div class="stats-grid">
-    <div class="stat-card" style="border-bottom: 3px solid var(--red)">
-      <div class="stat-label">Kritisk</div>
-      <div id="valRed" class="stat-value" style="color: var(--red)">-</div>
-      <div id="areaRed" class="stat-sub">0 m²</div>
+    <div class="stat-card" style="border-left: 4px solid var(--bad);">
+      <div class="stat-left">
+        <span class="stat-label">Kritisk Fall</span>
+        <span class="stat-sub" id="areaRed">0.0 m²</span>
+      </div>
+      <div class="stat-value" id="valRed" style="color: var(--bad);">-</div>
     </div>
-    <div class="stat-card" style="border-bottom: 3px solid var(--orange)">
-      <div class="stat-label">Advarsel</div>
-      <div id="valYellow" class="stat-value" style="color: var(--orange)">-</div>
-      <div id="areaYellow" class="stat-sub">0 m²</div>
+    <div class="stat-card" style="border-left: 4px solid var(--warn);">
+      <div class="stat-left">
+        <span class="stat-label">Advarsel Fall</span>
+        <span class="stat-sub" id="areaYellow">0.0 m²</span>
+      </div>
+      <div class="stat-value" id="valYellow" style="color: var(--warn);">-</div>
     </div>
-    <div class="stat-card" style="border-bottom: 3px solid var(--green)">
-      <div class="stat-label">Godkjent</div>
-      <div id="valGreen" class="stat-value" style="color: var(--green)">-</div>
-      <div id="areaGreen" class="stat-sub">0 m²</div>
-    </div>
-  </div>
-
-  <div class="panel" style="padding: 10px 14px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-      <span class="panel-label" style="margin:0;">2D FORHÅNDSVISNING (KLIKK FOR 3D-HOPP)</span>
-      <span id="triCountLabel" style="font-family:var(--mono); font-size:10px; color:var(--muted);">0 trekanter</span>
-    </div>
-    <div class="canvas-wrap">
-      <canvas id="heatmapCanvas" width="600" height="360"></canvas>
-      <div class="canvas-hint" id="canvasHint">Velg én eller flere modeller og kjør analyse for å bygge felles 3D-overlay.</div>
+    <div class="stat-card" style="border-left: 4px solid var(--ok);">
+      <div class="stat-left">
+        <span class="stat-label">Godkjent Fall</span>
+        <span class="stat-sub" id="areaGreen">0.0 m²</span>
+      </div>
+      <div class="stat-value" id="valGreen" style="color: var(--ok);">-</div>
     </div>
   </div>
 
-  <div class="panel legend">
-    <div class="legend-item"><div class="color-bar" style="background: #f85149"></div> <span id="legCrit">0.0% - 1.5% (Kritisk - Fare for vannansamling)</span></div>
-    <div class="legend-item"><div class="color-bar" style="background: #f0883e"></div> <span id="legWarn">1.5% - 2.0% (Advarsel - Lavt resulterende fall)</span></div>
-    <div class="legend-item"><div class="color-bar" style="background: #3fb950"></div> <span id="legOk">&gt; 2.0% (Godkjent resulterende fall)</span></div>
+  <div class="viewer-card">
+    <div class="viewer-toolbar">
+      <div class="viewer-toolbar-title">
+        <span>🧭 INTERAKTIV 3D / 2D HEATMAP-VIEWER</span>
+        <span class="badge" id="triCountLabel">0 flater</span>
+      </div>
+      <button class="tool-btn active" id="btnMode3D">3D Orbit</button>
+      <button class="tool-btn" id="btnMode2D">2D Plan</button>
+      <button class="tool-btn" id="btnZScale" title="Overdriv høydeforskjeller i 3D">Z-skala: 1x</button>
+      <button class="tool-btn" id="btnWireframe" title="Vis/skjul trekantkanter">Kanter: På</button>
+      <button class="tool-btn" id="btnResetCam">Sentrer (Hjem)</button>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="heatmapCanvas"></canvas>
+
+      <div class="empty-overlay" id="emptyOverlay">
+        <h3>Interaktiv 3D Fallanalyse</h3>
+        <p>Velg én eller flere vegmodeller i menyen over og trykk <b>«1. Kjør Fallanalyse»</b>.<br><br>
+        Du kan rotere (venstre mus), panorere (høyre mus) og zoome (musehjul) direkte i 3D-kartet, eller klikke på en flate for å hoppe dit i Trimble Connect.</p>
+      </div>
+
+      <div class="viewer-hud" id="viewerHud">
+        <b>Styring:</b> Venstre = Roter 3D · Høyre/Shift = Panorer · Hjul = Zoom · Klikk = Velg flate<br>
+        <span id="pickedInfo">Ingen flate markert enda.</span>
+      </div>
+
+      <div class="viewer-legend">
+        <span><i class="leg-dot" style="background:#e11d48"></i><span id="legCrit">&lt; 1.5%</span></span>
+        <span><i class="leg-dot" style="background:#f59e0b"></i><span id="legWarn">1.5 - 2.0%</span></span>
+        <span><i class="leg-dot" style="background:#16a34a"></i><span id="legOk">&gt; 2.0%</span></span>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -199,11 +239,14 @@ let lastCloudAuth = {
 
 const $ = id => document.getElementById(id);
 
-function setStatus(msg, type = "info") {
-  const bar = $("statusBar");
-  bar.textContent = msg;
-  bar.className = type === "ok" ? "ok" : type === "warn" ? "warn" : type === "err" ? "err" : "";
-}
+const setStatus = (m, c = '') => {
+  $('statusText').textContent = m;
+  let dotClass = 'dot';
+  if (c === 'ok') dotClass = 'dot live';
+  else if (c === 'error' || c === 'err') dotClass = 'dot error';
+  else if (c === 'warn') dotClass = 'dot warn';
+  $('statusDot').className = dotClass;
+};
 
 function safeApiCall(promiseFn, timeoutMs = 4500, fallbackVal = null) {
   return new Promise(resolve => {
@@ -211,15 +254,10 @@ function safeApiCall(promiseFn, timeoutMs = 4500, fallbackVal = null) {
     const timer = setTimeout(() => {
       if (!settled) { settled = true; resolve(fallbackVal); }
     }, timeoutMs);
-
     Promise.resolve()
       .then(() => promiseFn())
-      .then(res => {
-        if (!settled) { settled = true; clearTimeout(timer); resolve(res); }
-      })
-      .catch(() => {
-        if (!settled) { settled = true; clearTimeout(timer); resolve(fallbackVal); }
-      });
+      .then(res => { if (!settled) { settled = true; clearTimeout(timer); resolve(res); } })
+      .catch(() => { if (!settled) { settled = true; clearTimeout(timer); resolve(fallbackVal); } });
   });
 }
 
@@ -232,30 +270,37 @@ function coreBase(location) {
   return "https://app.connect.trimble.com/tc/api";
 }
 
-// Rekursiv URL-finner (samme som i original-ifc-download.js)
 function findUrlInObject(value) {
   if (!value) return null;
   if (typeof value === "string" && /^https?:\/\//i.test(value)) return value;
   if (Array.isArray(value)) {
-    for (const item of value) {
-      const hit = findUrlInObject(item);
-      if (hit) return hit;
-    }
+    for (const item of value) { const hit = findUrlInObject(item); if (hit) return hit; }
   } else if (typeof value === "object") {
     for (const key of ["uploadUrl", "uploadURL", "presignedUrl", "signedUrl", "signedURL", "url", "href", "location"]) {
       if (typeof value[key] === "string" && /^https?:\/\//i.test(value[key])) return value[key];
     }
-    for (const item of Object.values(value)) {
-      const hit = findUrlInObject(item);
-      if (hit) return hit;
-    }
+    for (const item of Object.values(value)) { const hit = findUrlInObject(item); if (hit) return hit; }
   }
   return null;
 }
 
-$("outputFileName").addEventListener("input", () => {
-  userEditedFileName = true;
+// ============================================================================
+// DROPDOWN OG FILNAVN-LOGIKK (SAMME STIL SOM MENGDEUTTAK R761)
+// ============================================================================
+document.addEventListener('click', (e) => {
+  const dropdown = $('modelSelectDropdown');
+  const header = $('modelSelectHeader');
+  const container = $('multiSelectContainer');
+  if (dropdown && header && !container.classList.contains('disabled')) {
+    if (header.contains(e.target)) {
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    } else if (!dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  }
 });
+
+$("outputFileName").addEventListener("input", () => { userEditedFileName = true; });
 
 function getCleanOutputFileName() {
   let name = ($("outputFileName").value || "HeatMap_Fallanalyse").trim();
@@ -265,61 +310,54 @@ function getCleanOutputFileName() {
 }
 
 function getSelectedModelIds() {
-  return Array.from(document.querySelectorAll(".model-cb:checked")).map(cb => cb.value);
+  return Array.from(document.querySelectorAll(".model-checkbox:checked")).map(cb => cb.value);
 }
 
-function updateSelectedModelsUI() {
-  const checked = Array.from(document.querySelectorAll(".model-cb:checked"));
-  $("selectedCountLabel").textContent = checked.length;
+function oppdaterModellFilterTekst() {
+  const checkboxes = document.querySelectorAll('.model-checkbox');
+  const checked = Array.from(checkboxes).filter(cb => cb.checked);
+  const header = $('modelSelectHeader');
+
+  if (checked.length === checkboxes.length && checkboxes.length > 0) {
+    header.innerText = `Alle modeller valgt (${checked.length})`;
+  } else if (checked.length === 0) {
+    header.innerText = "Ingen modeller valgt";
+  } else if (checked.length === 1) {
+    header.innerText = checked[0].dataset.name || "1 modell valgt";
+  } else {
+    header.innerText = `${checked.length} modeller valgt`;
+  }
 
   if (!userEditedFileName) {
     const localFiles = $("localIfcInput")?.files;
     if (localFiles && localFiles.length > 0) {
       const base = localFiles[0].name.replace(/\.ifc$/i, "");
-      $("outputFileName").value = localFiles.length === 1
-        ? `HeatMap_${base}.ifc`
-        : `HeatMap_${base}_mfl_${localFiles.length}modeller.ifc`;
+      $("outputFileName").value = localFiles.length === 1 ? `HeatMap_${base}.ifc` : `HeatMap_${base}_mfl_${localFiles.length}mod.ifc`;
     } else if (checked.length === 1) {
       const mName = (checked[0].dataset.name || "Vegmodell").replace(/\.ifc$/i, "");
       $("outputFileName").value = `HeatMap_${mName}.ifc`;
     } else if (checked.length > 1) {
       const first = (checked[0].dataset.name || "Veg").replace(/\.ifc$/i, "");
-      $("outputFileName").value = `HeatMap_${first}_pluss_${checked.length - 1}_modeller.ifc`;
+      $("outputFileName").value = `HeatMap_${first}_pluss_${checked.length - 1}mod.ifc`;
     }
   }
 }
 
-$("linkSelectAll").addEventListener("click", () => {
-  document.querySelectorAll(".model-cb").forEach(cb => cb.checked = true);
-  updateSelectedModelsUI();
-});
-
-$("linkSelectNone").addEventListener("click", () => {
-  document.querySelectorAll(".model-cb").forEach(cb => cb.checked = false);
-  updateSelectedModelsUI();
-});
-
 $("localIfcInput").addEventListener("change", (e) => {
   const files = Array.from(e.target.files || []);
-  const box = $("localFileBox");
+  $("localCountBadge").textContent = files.length;
+  oppdaterModellFilterTekst();
   if (files.length > 0) {
-    box.classList.add("loaded");
-    const totalMb = files.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
-    $("localFileTitle").textContent = `✅ ${files.length} lokal(e) IFC-fil(er) klar`;
-    $("localFileBadge").textContent = `${totalMb.toFixed(1)} MB`;
-    updateSelectedModelsUI();
-    setStatus(`${files.length} lokal(e) fil(er) valgt. Klikk '1. Hent geometri & Kjør Fallanalyse'.`, "ok");
-  } else {
-    box.classList.remove("loaded");
-    $("localFileTitle").textContent = "📂 Lokale IFC-filer (Valgfri reserve, støtter flervalg)";
-    $("localFileBadge").textContent = "Valgfri";
-    updateSelectedModelsUI();
+    setStatus(`${files.length} lokal(e) IFC-fil(er) klargjort. Trykk '1. Kjør Fallanalyse'.`, 'ok');
   }
 });
 
-// 1. KOBLE TIL TRIMBLE CONNECT
+// ============================================================================
+// TRIMBLE CONNECT OPPKOBLING & MODELLHENTING
+// ============================================================================
 async function initTC() {
   try {
+    setStatus('Kobler til Trimble Connect...', 'warn');
     API = await window.TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
       if (event === "extension.accessToken" && typeof data === "string" && data.length > 50) {
         lastCloudAuth.token = data;
@@ -327,7 +365,6 @@ async function initTC() {
         lastCloudAuth.token = data.accessToken;
       }
     });
-    setStatus("Tilkoblet Trimble Connect. Henter synlige modeller...", "ok");
     await syncVisibleModels();
   } catch (err) {
     setStatus("Frakoblet modus (du kan fortsatt analysere lokale IFC-filer).", "warn");
@@ -337,7 +374,7 @@ async function initTC() {
 async function syncVisibleModels() {
   if (!API?.viewer) return;
   try {
-    setStatus("Skanner synlige modeller i 3D-visningen...");
+    setStatus("Skanner synlige modeller i 3D-visningen...", "warn");
     const groups = await safeApiCall(() => API.viewer.getObjects({}, { visible: true }), 5000, []);
     const visibleIds = new Set((groups || []).filter(g => g.modelId && g.objects?.length).map(g => String(g.modelId)));
 
@@ -358,27 +395,47 @@ async function syncVisibleModels() {
       }
     }
 
-    const container = $("modelChecklist");
+    const dropdown = $('modelSelectDropdown');
+    dropdown.innerHTML = '';
+
     if (visibleModels.length === 0) {
-      container.innerHTML = `<div style="color:var(--muted); font-family:var(--mono); font-size:11px; padding:4px;">– ingen synlige modeller funnet –</div>`;
-      setStatus("Ingen synlige modeller funnet. Skru på modeller i 3D eller velg lokale IFC-filer.", "warn");
-    } else {
-      container.innerHTML = visibleModels.map((m, idx) => `
-        <label class="model-item">
-          <input type="checkbox" class="model-cb" value="${m.id}" data-name="${m.name.replace(/"/g, '&quot;')}" ${idx === 0 ? "checked" : ""}/>
-          <span title="${m.name}">${m.name}</span>
-        </label>
-      `).join("");
-      container.querySelectorAll(".model-cb").forEach(cb => cb.addEventListener("change", updateSelectedModelsUI));
-      updateSelectedModelsUI();
-      setStatus(`${visibleModels.length} synlig(e) modell(er) funnet. Velg én eller flere!`, "ok");
+      $('modelSelectHeader').innerText = "Ingen synlige modeller";
+      setStatus("Ingen synlige modeller funnet. Skru på en modell eller bruk 'Lokale IFC'.", "warn");
+      return;
     }
+
+    const alleLabel = document.createElement('label');
+    alleLabel.innerHTML = `<input type="checkbox" id="selectAllModels" checked> <strong style="color:var(--blue)">Velg alle synlige modeller (${visibleModels.length})</strong>`;
+    dropdown.appendChild(alleLabel);
+
+    visibleModels.forEach(m => {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" class="model-checkbox" value="${m.id}" data-name="${m.name.replace(/"/g, '&quot;')}" checked> <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${m.name}">${m.name}</span>`;
+      dropdown.appendChild(label);
+    });
+
+    const checkboxes = document.querySelectorAll('.model-checkbox');
+    const selectAll = $('selectAllModels');
+
+    selectAll.addEventListener('change', (e) => {
+      checkboxes.forEach(cb => cb.checked = e.target.checked);
+      oppdaterModellFilterTekst();
+    });
+
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', () => {
+        selectAll.checked = Array.from(checkboxes).every(c => c.checked);
+        oppdaterModellFilterTekst();
+      });
+    });
+
+    oppdaterModellFilterTekst();
+    setStatus(`Klar. ${visibleModels.length} synlig(e) modell(er) funnet.`, "ok");
   } catch (err) {
-    setStatus("Kunne ikke hente modell-liste: " + err.message, "err");
+    setStatus("Feil ved modellhenting: " + err.message, "error");
   }
 }
 
-// Sikrer at vi har gyldig sky-token og prosjektdetaljer
 async function ensureCloudAuth() {
   if (!API) return false;
   if (!lastCloudAuth.token && typeof API.extension?.requestPermission === "function") {
@@ -398,7 +455,6 @@ async function ensureCloudAuth() {
   return Boolean(lastCloudAuth.token);
 }
 
-// 2. HENT ENKELTMODELL FRA VIEWER ELLER SKY
 async function fetchSingleModelIfc(modelId) {
   const mObj = visibleModels.find(m => m.id === modelId);
   const fallbackName = mObj?.name || `modell_${modelId.slice(0, 6)}.ifc`;
@@ -407,7 +463,6 @@ async function fetchSingleModelIfc(modelId) {
   const meta = loaded?.file || {};
   const fileName = String(meta.name || loaded?.name || fallbackName);
 
-  // Sjekk hurtigbuffer i viewer først
   if (loaded?.blob) {
     if (loaded.blob instanceof Blob) {
       const txt = await loaded.blob.text();
@@ -419,7 +474,7 @@ async function fetchSingleModelIfc(modelId) {
 
   const hasAuth = await ensureCloudAuth();
   if (!hasAuth) {
-    throw new Error(`Mangler sky-token. Velg '${fileName}' i 'Lokale IFC-filer'-feltet over!`);
+    throw new Error(`Mangler sky-token. Velg '${fileName}' via '📂 Lokale IFC'-knappen øverst!`);
   }
 
   const fileId = String(meta.id || loaded?.id || modelId);
@@ -429,7 +484,6 @@ async function fetchSingleModelIfc(modelId) {
 
   const headers = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
 
-  // Hent også filmetadata for å finne eksakt parentId (mappen der IFC-filen ligger i TC!)
   try {
     const metaResp = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers });
     if (metaResp.ok) {
@@ -455,16 +509,15 @@ async function fetchSingleModelIfc(modelId) {
     } catch {}
   }
 
-  if (!downloadUrl) {
-    throw new Error(`Fant ikke nedlastingslenke for '${fileName}'. Velg den under 'Lokale IFC-filer'!`);
-  }
-
+  if (!downloadUrl) throw new Error(`Fant ikke nedlastingslenke for '${fileName}'. Bruk '📂 Lokale IFC'-knappen!`);
   const resp = await fetch(downloadUrl);
   if (!resp.ok) throw new Error(`Nedlasting av ${fileName} feilet (HTTP ${resp.status})`);
   return { text: await resp.text(), fileName };
 }
 
-// 3. RASK IFC STEP GEOMETRI-DEKODER
+// ============================================================================
+// IFC STEP PARSER & TREKANTANALYSE
+// ============================================================================
 function parseIfcTriangles(ifcText) {
   const entities = new Map();
   const lines = ifcText.split(/\r?\n/);
@@ -500,17 +553,13 @@ function parseIfcTriangles(ifcText) {
   for (const [id, ent] of entities) {
     if (ent.type === "IFCCARTESIANPOINT") {
       const nums = parseNums(ent.args);
-      if (nums.length >= 3) {
-        cartesianPoints.set(id, [nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
-      }
+      if (nums.length >= 3) cartesianPoints.set(id, [nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
     } else if (ent.type === "IFCCARTESIANPOINTLIST3D") {
       const coordLists = [];
       const tuples = ent.args.match(/\(\s*[-+]?\d[^)]+\)/g) || [];
       for (const tup of tuples) {
         const nums = parseNums(tup);
-        if (nums.length >= 3) {
-          coordLists.push([nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
-        }
+        if (nums.length >= 3) coordLists.push([nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
       }
       pointLists.set(id, coordLists);
     }
@@ -523,7 +572,6 @@ function parseIfcTriangles(ifcText) {
       const refs = parseRefs(ent.args);
       const pts = pointLists.get(refs[0]);
       if (!pts || !pts.length) continue;
-
       const afterFirstParen = ent.args.indexOf("((", ent.args.indexOf("#"));
       if (afterFirstParen === -1) continue;
       const idxBlock = ent.args.slice(afterFirstParen);
@@ -566,7 +614,6 @@ function parseIfcTriangles(ifcText) {
   return rawTriangles;
 }
 
-// 4. BEREGN RESULTERENDE FALL PER TREKANT
 function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
   const results = [];
   for (let i = 0; i < rawTriangles.length; i++) {
@@ -597,102 +644,409 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
     const cy = (p1[1] + p2[1] + p3[1]) / 3;
     const cz = (p1[2] + p2[2] + p3[2]) / 3;
 
-    results.push({ p1, p2, p3, slopePct, area, category, center: { x: cx, y: cy, z: cz } });
+    // Enkel lysberegning basert på normalvektor for ekte 3D-dybdefølelse
+    const shade = Math.max(0.78, Math.min(1.08, 0.85 + ((nx / len) * 0.12 + (ny / len) * 0.12)));
+
+    results.push({ p1, p2, p3, slopePct, area, category, shade, center: { x: cx, y: cy, z: cz } });
   }
   return results;
 }
 
-// 5. TEGN 2D FORHÅNDSKART
-let canvasTransform = null;
+// ============================================================================
+// INTERAKTIV 3D & 2D MOTOR (ORBIT, PAN, ZOOM, Z-SKALA OG KLIKK-DETEKSJON)
+// ============================================================================
+const viewerState = {
+  mode: "3d",         // '3d' eller '2d'
+  yaw: -0.65,         // Horisontal rotasjon (rad)
+  pitch: 0.72,        // Vertikal tilt (rad)
+  zoom: 1.0,
+  panX: 0,
+  panY: 0,
+  zScale: 1,          // 1x, 3x, 5x høydeoverdrivelse
+  wireframe: true,
+  bounds: null,
+  selectedTri: null,
+  projectedCache: [], // For lynrask museklikk-picking
+  dragging: false,
+  dragButton: 0,
+  startX: 0,
+  startY: 0,
+  moved: false
+};
 
-function render2DPreview(triangles) {
-  const canvas = $("heatmapCanvas");
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (!triangles.length) {
-    $("canvasHint").style.display = "block";
-    return;
-  }
-  $("canvasHint").style.display = "none";
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+function computeSceneBounds(triangles) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   for (const t of triangles) {
     for (const p of [t.p1, t.p2, t.p3]) {
       if (p[0] < minX) minX = p[0];
       if (p[1] < minY) minY = p[1];
+      if (p[2] < minZ) minZ = p[2];
       if (p[0] > maxX) maxX = p[0];
       if (p[1] > maxY) maxY = p[1];
+      if (p[2] > maxZ) maxZ = p[2];
     }
   }
-
-  const pad = 18;
-  const spanX = Math.max(1, maxX - minX);
-  const spanY = Math.max(1, maxY - minY);
-  const scale = Math.min((canvas.width - pad * 2) / spanX, (canvas.height - pad * 2) / spanY);
-  const offsetX = (canvas.width - spanX * scale) / 2;
-  const offsetY = (canvas.height - spanY * scale) / 2;
-
-  canvasTransform = { minX, minY, maxX, maxY, scale, offsetX, offsetY, height: canvas.height };
-
-  const colors = { red: "#f85149", yellow: "#f0883e", green: "#2ea043" };
-
-  for (const cat of ["green", "yellow", "red"]) {
-    ctx.fillStyle = colors[cat];
-    ctx.strokeStyle = colors[cat];
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    for (const t of triangles) {
-      if (t.category !== cat) continue;
-      const x1 = offsetX + (t.p1[0] - minX) * scale;
-      const y1 = canvas.height - (offsetY + (t.p1[1] - minY) * scale);
-      const x2 = offsetX + (t.p2[0] - minX) * scale;
-      const y2 = canvas.height - (offsetY + (t.p2[1] - minY) * scale);
-      const x3 = offsetX + (t.p3[0] - minX) * scale;
-      const y3 = canvas.height - (offsetY + (t.p3[1] - minY) * scale);
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.lineTo(x3, y3);
-      ctx.closePath();
-    }
-    ctx.fill();
-    ctx.stroke();
-  }
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const radius = Math.max(1, Math.hypot(maxX - minX, maxY - minY) / 2);
+  return { minX, minY, minZ, maxX, maxY, maxZ, cx, cy, cz, radius };
 }
 
-$("heatmapCanvas").addEventListener("click", async (e) => {
-  if (!analyzedTriangles.length || !canvasTransform || !API?.viewer) return;
-  const rect = e.target.getBoundingClientRect();
-  const px = (e.clientX - rect.left) * (e.target.width / rect.width);
-  const py = (e.clientY - rect.top) * (e.target.height / rect.height);
+function resetCamera() {
+  if (!analyzedTriangles.length) return;
+  viewerState.bounds = computeSceneBounds(analyzedTriangles);
+  viewerState.zoom = 1.0;
+  viewerState.panX = 0;
+  viewerState.panY = 0;
+  if (viewerState.mode === "2d") {
+    viewerState.yaw = 0;
+    viewerState.pitch = Math.PI / 2;
+  } else {
+    viewerState.yaw = -0.65;
+    viewerState.pitch = 0.68;
+  }
+  requestAnimationFrame(renderViewport);
+}
 
-  const worldX = canvasTransform.minX + (px - canvasTransform.offsetX) / canvasTransform.scale;
-  const worldY = canvasTransform.minY + ((canvasTransform.height - py) - canvasTransform.offsetY) / canvasTransform.scale;
+function projectPoint(pt, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult) {
+  const dx = pt[0] - b.cx;
+  const dy = pt[1] - b.cy;
+  const dz = (pt[2] - b.cz) * zMult;
 
-  let best = null, bestDist = Infinity;
-  for (const t of analyzedTriangles) {
-    const d = Math.hypot(t.center.x - worldX, t.center.y - worldY);
-    if (d < bestDist) { bestDist = d; best = t; }
+  // Roter rundt Z-aksen (Yaw)
+  const x1 = dx * cosY - dy * sinY;
+  const y1 = dx * sinY + dy * cosY;
+  const z1 = dz;
+
+  // Tilt kameraet (Pitch:Når pitch = 90 grader ser vi rett ned i 2D plan)
+  const y2 = y1 * sinP - z1 * cosP;
+  const depth = y1 * cosP + z1 * sinP;
+
+  return {
+    sx: halfW + viewerState.panX + x1 * scale,
+    sy: halfH + viewerState.panY - y2 * scale,
+    depth
+  };
+}
+
+function renderViewport() {
+  const canvas = $("heatmapCanvas");
+  const container = $("canvasContainer");
+  if (!canvas || !container) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
   }
 
-  if (best) {
-    setStatus(`Valgt punkt: Fall = ${best.slopePct.toFixed(2)}% (Kote ${best.center.z.toFixed(2)} m)`, best.category === "red" ? "err" : best.category === "yellow" ? "warn" : "ok");
-    try {
-      await safeApiCall(() => API.viewer.setCamera({
-        position: { x: best.center.x, y: best.center.y - 15, z: best.center.z + 25 },
-        target: { x: best.center.x, y: best.center.y, z: best.center.z }
-      }), 3000);
-    } catch {}
+  const ctx = canvas.getContext("2d");
+  ctx.save();
+  ctx.scale(dpr, dpr);
+
+  // Lys, teknisk bakgrunn med diskret rutenett
+  ctx.fillStyle = "#eef2f6";
+  ctx.fillRect(0, 0, w, h);
+
+  if (!analyzedTriangles.length || !viewerState.bounds) {
+    ctx.restore();
+    return;
+  }
+
+  const b = viewerState.bounds;
+  const baseScale = (Math.min(w, h) * 0.43) / b.radius;
+  const scale = baseScale * viewerState.zoom;
+  const halfW = w / 2;
+  const halfH = h / 2;
+
+  const yaw = viewerState.mode === "2d" ? viewerState.yaw : viewerState.yaw;
+  const pitch = viewerState.mode === "2d" ? (Math.PI / 2) : viewerState.pitch;
+  const zMult = viewerState.mode === "2d" ? 1 : viewerState.zScale;
+
+  const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+  const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
+
+  // Tegn et 3D-bunnrutenett under modellen for romfølelse
+  ctx.strokeStyle = "#d5dde6";
+  ctx.lineWidth = 1;
+  const gridSteps = 6;
+  const step = (b.radius * 2) / gridSteps;
+  ctx.beginPath();
+  for (let i = -gridSteps / 2; i <= gridSteps / 2; i++) {
+    const gx = b.cx + i * step;
+    const gy = b.cy + i * step;
+    const a1 = projectPoint([gx, b.cy - b.radius, b.minZ], b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    const a2 = projectPoint([gx, b.cy + b.radius, b.minZ], b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    ctx.moveTo(a1.sx, a1.sy); ctx.lineTo(a2.sx, a2.sy);
+
+    const b1 = projectPoint([b.cx - b.radius, gy, b.minZ], b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    const b2 = projectPoint([b.cx + b.radius, gy, b.minZ], b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    ctx.moveTo(b1.sx, b1.sy); ctx.lineTo(b2.sx, b2.sy);
+  }
+  ctx.stroke();
+
+  // Projiser alle trekanter og sorter etter dybde (Painter's Algorithm)
+  const projected = new Array(analyzedTriangles.length);
+  for (let i = 0; i < analyzedTriangles.length; i++) {
+    const t = analyzedTriangles[i];
+    const v1 = projectPoint(t.p1, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    const v2 = projectPoint(t.p2, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    const v3 = projectPoint(t.p3, b, cosY, sinY, cosP, sinP, scale, halfW, halfH, zMult);
+    // Sikrer at kritiske røde flater tegnes ørlite høyere i prioritering ved lik dybde
+    const prioBoost = t.category === "red" ? 0.02 : t.category === "yellow" ? 0.01 : 0;
+    const depth = (v1.depth + v2.depth + v3.depth) / 3 - prioBoost;
+    projected[i] = { t, v1, v2, v3, depth };
+  }
+
+  projected.sort((a, b) => b.depth - a.depth);
+  viewerState.projectedCache = projected;
+
+  const baseColors = {
+    red:    [225, 29, 72],   // Kritisk rød
+    yellow: [245, 158, 11],  // Advarsel oransje/gul
+    green:  [22, 163, 74]    // Godkjent grønn
+  };
+
+  ctx.lineJoin = "round";
+
+  for (let i = 0; i < projected.length; i++) {
+    const { t, v1, v2, v3 } = projected[i];
+    // Frustum-culling (hopp over trekanter helt utenfor skjermen)
+    if (
+      (v1.sx < -50 && v2.sx < -50 && v3.sx < -50) ||
+      (v1.sx > w + 50 && v2.sx > w + 50 && v3.sx > w + 50) ||
+      (v1.sy < -50 && v2.sy < -50 && v3.sy < -50) ||
+      (v1.sy > h + 50 && v2.sy > h + 50 && v3.sy > h + 50)
+    ) continue;
+
+    const rgb = baseColors[t.category];
+    const r = Math.min(255, Math.round(rgb[0] * t.shade));
+    const g = Math.min(255, Math.round(rgb[1] * t.shade));
+    const bl = Math.min(255, Math.round(rgb[2] * t.shade));
+    const fillCol = `rgb(${r},${g},${bl})`;
+
+    ctx.beginPath();
+    ctx.moveTo(v1.sx, v1.sy);
+    ctx.lineTo(v2.sx, v2.sy);
+    ctx.lineTo(v3.sx, v3.sy);
+    ctx.closePath();
+
+    ctx.fillStyle = fillCol;
+    ctx.fill();
+
+    if (viewerState.wireframe) {
+      ctx.strokeStyle = "rgba(17, 24, 39, 0.18)";
+      ctx.lineWidth = 0.45;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = fillCol;
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+    }
+  }
+
+  // Tegn tydelig blå/hvit markering rundt valgt trekant
+  if (viewerState.selectedTri) {
+    const sel = projected.find(p => p.t === viewerState.selectedTri);
+    if (sel) {
+      ctx.beginPath();
+      ctx.moveTo(sel.v1.sx, sel.v1.sy);
+      ctx.lineTo(sel.v2.sx, sel.v2.sy);
+      ctx.lineTo(sel.v3.sx, sel.v3.sy);
+      ctx.closePath();
+      ctx.strokeStyle = "#1d4ed8";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      const cx = (sel.v1.sx + sel.v2.sx + sel.v3.sx) / 3;
+      const cy = (sel.v1.sy + sel.v2.sy + sel.v3.sy) / 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  // Tegn et lite 3D-kompass/aksesystem oppe til høyre i vieweren
+  const ox = w - 42, oy = 42, axisLen = 24;
+  const origin2d = { sx: ox, sy: oy };
+  const axes = [
+    { label: "Ø (X)", vec: [1, 0, 0], color: "#dc2626" },
+    { label: "N (Y)", vec: [0, 1, 0], color: "#16a34a" },
+    { label: "Z",     vec: [0, 0, 1], color: "#2563eb" }
+  ];
+  ctx.font = "bold 10px 'JetBrains Mono', monospace";
+  for (const ax of axes) {
+    const rx = ax.vec[0] * cosY - ax.vec[1] * sinY;
+    const ry = ax.vec[0] * sinY + ax.vec[1] * cosY;
+    const rz = ax.vec[2];
+    const py = ry * sinP - rz * cosP;
+    const ex = origin2d.sx + rx * axisLen;
+    const ey = origin2d.sy - py * axisLen;
+    ctx.beginPath();
+    ctx.moveTo(origin2d.sx, origin2d.sy);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = ax.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = ax.color;
+    ctx.fillText(ax.label, ex + 3, ey + 3);
+  }
+
+  ctx.restore();
+}
+
+// Punkt-i-trekant-sjekk i skjermkoordinater for eksakt klikk i 3D
+function pointInTri2D(px, py, v1, v2, v3) {
+  const d1 = (px - v2.sx) * (v1.sy - v2.sy) - (v1.sx - v2.sx) * (py - v2.sy);
+  const d2 = (px - v3.sx) * (v2.sy - v3.sy) - (v2.sx - v3.sx) * (py - v3.sy);
+  const d3 = (px - v1.sx) * (v3.sy - v1.sy) - (v3.sx - v1.sx) * (py - v1.sy);
+  const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+  const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+  return !(hasNeg && hasPos);
+}
+
+// Musehendelser for 3D Orbit, Pan og Zoom
+const canvasEl = $("heatmapCanvas");
+canvasEl.addEventListener("contextmenu", e => e.preventDefault());
+
+canvasEl.addEventListener("pointerdown", e => {
+  if (!analyzedTriangles.length) return;
+  viewerState.dragging = true;
+  viewerState.dragButton = e.button;
+  viewerState.startX = e.clientX;
+  viewerState.startY = e.clientY;
+  viewerState.moved = false;
+  canvasEl.setPointerCapture(e.pointerId);
+});
+
+canvasEl.addEventListener("pointermove", e => {
+  if (!viewerState.dragging) return;
+  const dx = e.clientX - viewerState.startX;
+  const dy = e.clientY - viewerState.startY;
+  if (Math.hypot(dx, dy) > 3) viewerState.moved = true;
+
+  viewerState.startX = e.clientX;
+  viewerState.startY = e.clientY;
+
+  const isPan = viewerState.dragButton === 2 || viewerState.dragButton === 1 || e.shiftKey || viewerState.mode === "2d";
+
+  if (isPan) {
+    viewerState.panX += dx;
+    viewerState.panY += dy;
+  } else {
+    viewerState.yaw += dx * 0.008;
+    viewerState.pitch = Math.max(0.08, Math.min(Math.PI / 2, viewerState.pitch + dy * 0.008));
+  }
+  requestAnimationFrame(renderViewport);
+});
+
+canvasEl.addEventListener("pointerup", async e => {
+  if (!viewerState.dragging) return;
+  viewerState.dragging = false;
+  canvasEl.releasePointerCapture(e.pointerId);
+
+  // Hvis det var et rent klikk (ikke dra-bevegelse): Finn trekanten under musepekeren!
+  if (!viewerState.moved && e.button === 0 && viewerState.projectedCache.length) {
+    const rect = canvasEl.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+
+    // Gå baklengs gjennom projectedCache (fra nærmest kamera til lengst bak)
+    let hit = null;
+    for (let i = viewerState.projectedCache.length - 1; i >= 0; i--) {
+      const item = viewerState.projectedCache[i];
+      if (pointInTri2D(px, py, item.v1, item.v2, item.v3)) {
+        hit = item.t;
+        break;
+      }
+    }
+
+    if (hit) {
+      viewerState.selectedTri = hit;
+      renderViewport();
+      const catText = hit.category === "red" ? "🔴 KRITISK" : hit.category === "yellow" ? "🟠 ADVARSEL" : "🟢 GODKJENT";
+      $("pickedInfo").innerHTML = `<b>Valgt flate:</b> ${catText} · Fall: <b>${hit.slopePct.toFixed(2)}%</b> · Areal: ${hit.area.toFixed(2)} m² · Kote: ${hit.center.z.toFixed(2)} m`;
+      setStatus(`Valgt flate: Fall = ${hit.slopePct.toFixed(2)}% (Kote ${hit.center.z.toFixed(2)} m)`, hit.category === "red" ? "error" : hit.category === "yellow" ? "warn" : "ok");
+
+      if (API?.viewer) {
+        await safeApiCall(() => API.viewer.setCamera({
+          position: { x: hit.center.x, y: hit.center.y - 18, z: hit.center.z + 22 },
+          target: { x: hit.center.x, y: hit.center.y, z: hit.center.z }
+        }), 3000);
+      }
+    }
   }
 });
 
-// 6. GENERER SAMLET 3D HEATMAP-IFC
+canvasEl.addEventListener("wheel", e => {
+  if (!analyzedTriangles.length) return;
+  e.preventDefault();
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left - rect.width / 2;
+  const my = e.clientY - rect.top - rect.height / 2;
+
+  const factor = e.deltaY < 0 ? 1.15 : 0.87;
+  const newZoom = Math.max(0.2, Math.min(35.0, viewerState.zoom * factor));
+  const ratio = newZoom / viewerState.zoom;
+
+  // Zoom mot musepekeren!
+  viewerState.panX = mx - (mx - viewerState.panX) * ratio;
+  viewerState.panY = my - (my - viewerState.panY) * ratio;
+  viewerState.zoom = newZoom;
+
+  requestAnimationFrame(renderViewport);
+}, { passive: false });
+
+window.addEventListener("resize", () => requestAnimationFrame(renderViewport));
+
+// Verktøylinjeknapper i 3D/2D-vieweren
+$("btnMode3D").addEventListener("click", () => {
+  viewerState.mode = "3d";
+  viewerState.pitch = 0.68;
+  $("btnMode3D").classList.add("active");
+  $("btnMode2D").classList.remove("active");
+  requestAnimationFrame(renderViewport);
+});
+
+$("btnMode2D").addEventListener("click", () => {
+  viewerState.mode = "2d";
+  viewerState.pitch = Math.PI / 2;
+  $("btnMode2D").classList.add("active");
+  $("btnMode3D").classList.remove("active");
+  requestAnimationFrame(renderViewport);
+});
+
+$("btnZScale").addEventListener("click", () => {
+  const scales = [1, 3, 5, 10];
+  const next = scales[(scales.indexOf(viewerState.zScale) + 1) % scales.length];
+  viewerState.zScale = next;
+  $("btnZScale").textContent = `Z-skala: ${next}x`;
+  $("btnZScale").classList.toggle("active", next > 1);
+  requestAnimationFrame(renderViewport);
+});
+
+$("btnWireframe").addEventListener("click", () => {
+  viewerState.wireframe = !viewerState.wireframe;
+  $("btnWireframe").textContent = `Kanter: ${viewerState.wireframe ? "På" : "Av"}`;
+  requestAnimationFrame(renderViewport);
+});
+
+$("btnResetCam").addEventListener("click", resetCamera);
+
+// ============================================================================
+// GENERER 3D HEATMAP-IFC
+// ============================================================================
 function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
   let id = 100;
   const nextId = () => ++id;
   const lines = [];
   const add = (type, args) => { const k = nextId(); lines.push(`#${k}=${type}(${args});`); return k; };
-
   const f = n => Number(n).toFixed(4);
 
   const pOrigin = add("IFCCARTESIANPOINT", "(0.,0.,0.)");
@@ -718,12 +1072,10 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
   };
 
   for (const t of triangles) buckets[t.category].tris.push(t);
-
   const productIds = [];
 
   for (const [key, b] of Object.entries(buckets)) {
     if (!b.tris.length) continue;
-
     const coordsStr = [];
     const facesStr = [];
     let ptCounter = 1;
@@ -738,7 +1090,6 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
 
     const ptList = add("IFCCARTESIANPOINTLIST3D", `(${coordsStr.join(",")})`);
     const faceSet = add("IFCTRIANGULATEDFACESET", `#${ptList},$,.F.,(${facesStr.join(",")}),$`);
-
     const colRgb = add("IFCCOLOURRGB", `'${b.name}',${b.rgb[0]},${b.rgb[1]},${b.rgb[2]}`);
     const shading = add("IFCSURFACESTYLERENDERING", `#${colRgb},0.,$,$,$,$,$,$,.NOTDEFINED.`);
     const surfStyle = add("IFCSURFACESTYLE", `'${b.name}',.BOTH.,(#${shading})`);
@@ -759,7 +1110,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v3.2'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.0'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -769,13 +1120,15 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
   ].join("\r\n");
 }
 
-// 7. HOVEDFLYT: KJØR ANALYSE PÅ TVERS AV FLERE MODELLER
+// ============================================================================
+// HOVEDFLYT: KJØR ANALYSE, EKSPORT OG TC-OPPLASTING
+// ============================================================================
 async function runAnalysis() {
   const selectedIds = getSelectedModelIds();
   const localFiles = Array.from($("localIfcInput")?.files || []);
 
   if (selectedIds.length === 0 && localFiles.length === 0) {
-    return setStatus("Kryss av for minst én synlig modell eller velg lokale IFC-filer først.", "warn");
+    return setStatus("Velg minst én modell i listen eller via '📂 Lokale IFC'.", "warn");
   }
 
   $("btnAnalyze").disabled = true;
@@ -787,9 +1140,9 @@ async function runAnalysis() {
     const warnLimit = parseFloat($("warnLimit").value) || 2.0;
     const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
 
-    $("legCrit").textContent = `0.0% - ${critLimit.toFixed(1)}% (Kritisk - Fare for vannansamling)`;
-    $("legWarn").textContent = `${critLimit.toFixed(1)}% - ${warnLimit.toFixed(1)}% (Advarsel - Lavt fall)`;
-    $("legOk").textContent = `> ${warnLimit.toFixed(1)}% (Godkjent resulterende fall)`;
+    $("legCrit").textContent = `< ${critLimit.toFixed(1)}%`;
+    $("legWarn").textContent = `${critLimit.toFixed(1)} - ${warnLimit.toFixed(1)}%`;
+    $("legOk").textContent = `> ${warnLimit.toFixed(1)}%`;
 
     let allRawTriangles = [];
     const processedNames = [];
@@ -797,11 +1150,10 @@ async function runAnalysis() {
     if (localFiles.length > 0) {
       for (let i = 0; i < localFiles.length; i++) {
         const f = localFiles[i];
-        setStatus(`Leser lokal fil ${i + 1}/${localFiles.length}: ${f.name}...`);
+        setStatus(`Leser lokal IFC ${i + 1}/${localFiles.length}: ${f.name}...`, "warn");
         await new Promise(r => setTimeout(r, 20));
         const txt = await f.text();
-        const tris = parseIfcTriangles(txt);
-        allRawTriangles = allRawTriangles.concat(tris);
+        allRawTriangles = allRawTriangles.concat(parseIfcTriangles(txt));
         processedNames.push(f.name);
       }
       await ensureCloudAuth();
@@ -809,25 +1161,20 @@ async function runAnalysis() {
       for (let i = 0; i < selectedIds.length; i++) {
         const mid = selectedIds[i];
         const mName = visibleModels.find(m => m.id === mid)?.name || mid;
-        setStatus(`Laster ned og dekoder modell ${i + 1}/${selectedIds.length}: ${mName}...`);
+        setStatus(`Laster inn modell ${i + 1}/${selectedIds.length}: ${mName}...`, "warn");
         const { text, fileName } = await fetchSingleModelIfc(mid);
-        const tris = parseIfcTriangles(text);
-        allRawTriangles = allRawTriangles.concat(tris);
+        allRawTriangles = allRawTriangles.concat(parseIfcTriangles(text));
         processedNames.push(fileName);
       }
     }
 
-    if (!allRawTriangles.length) {
-      throw new Error("Fant ingen 3D-trekanter i de valgte IFC-modellene.");
-    }
+    if (!allRawTriangles.length) throw new Error("Fant ingen 3D-trekanter i de valgte modellene.");
 
-    setStatus(`Beregner resulterende fall for ${allRawTriangles.length.toLocaleString("nb-NO")} trekanter fra ${processedNames.length} modell(er)...`);
+    setStatus(`Beregner resulterende fall for ${allRawTriangles.length.toLocaleString("nb-NO")} trekanter...`, "warn");
     await new Promise(r => setTimeout(r, 20));
 
     analyzedTriangles = evaluateTriangles(allRawTriangles, critLimit, warnLimit);
-    if (!analyzedTriangles.length) {
-      throw new Error("Fant ingen toppflater med helning < 35%.");
-    }
+    if (!analyzedTriangles.length) throw new Error("Fant ingen toppflater med helning < 35%.");
 
     let cRed = 0, cYel = 0, cGrn = 0;
     let aRed = 0, aYel = 0, aGrn = 0;
@@ -843,34 +1190,31 @@ async function runAnalysis() {
     $("areaYellow").textContent = `${aYel.toFixed(1)} m²`;
     $("valGreen").textContent = cGrn.toLocaleString("nb-NO");
     $("areaGreen").textContent = `${aGrn.toFixed(1)} m²`;
-    $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} trekanter (${processedNames.length} mod.)`;
+    $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} flater (${processedNames.length} mod.)`;
 
-    render2DPreview(analyzedTriangles);
+    $("emptyOverlay").style.display = "none";
+    viewerState.selectedTri = null;
+    resetCamera();
 
     const outFile = getCleanOutputFileName();
-    setStatus(`Bygger felles 3D HeatMap-IFC (${outFile})...`);
     generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outFile);
 
     $("btnDownloadIfc").disabled = false;
-    if (lastCloudAuth.token) {
-      $("btnUploadTc").disabled = false;
-    }
+    if (lastCloudAuth.token) $("btnUploadTc").disabled = false;
 
-    setStatus(`✅ Ferdig! ${processedNames.length} modell(er) analysert: ${cRed} kritiske flater (${aRed.toFixed(0)} m²).`, "ok");
+    setStatus(`Fullført! ${cRed} kritiske flater (${aRed.toFixed(0)} m²) funnet.`, "ok");
   } catch (err) {
     console.error("Analysefeil:", err);
-    setStatus(err.message || String(err), "err");
+    setStatus(err.message || String(err), "error");
   } finally {
     $("btnAnalyze").disabled = false;
   }
 }
 
-// 8. LAST NED 3D HEATMAP-IFC MED VALGT FILNAVN
 $("btnDownloadIfc").addEventListener("click", () => {
   if (!generatedIfcText) return;
   const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
   const outName = getCleanOutputFileName();
-  // Oppdater filnavnet i IFC-headeren hvis brukeren nettopp endret tekstfeltet
   generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outName);
 
   const blob = new Blob([generatedIfcText], { type: "application/x-step" });
@@ -880,10 +1224,9 @@ $("btnDownloadIfc").addEventListener("click", () => {
   a.download = outName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  setStatus(`💾 '${outName}' er lastet ned!`, "ok");
+  setStatus(`Filen '${outName}' ble lastet ned!`, "ok");
 });
 
-// 9. ROBUST OPPLASTING TIL TRIMBLE CONNECT (Støtter både 2-steg presigned URL og direkte Multipart POST)
 $("btnUploadTc").addEventListener("click", async () => {
   if (!generatedIfcText) return;
   $("btnUploadTc").disabled = true;
@@ -893,13 +1236,12 @@ $("btnUploadTc").addEventListener("click", async () => {
     const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
     generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, fileName);
 
-    setStatus(`Forbereder opplasting av '${fileName}' til Trimble Connect...`);
+    setStatus(`Laster opp '${fileName}' til Trimble Connect...`, "warn");
     await ensureCloudAuth();
     if (!lastCloudAuth.token) throw new Error("Mangler tilgangstoken til Trimble Connect.");
 
     const headersAuth = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
 
-    // Finn rotmappe hvis vi ikke allerede har mappen fra kildemodellen
     if (!lastCloudAuth.parentFolderId && lastCloudAuth.projectId) {
       try {
         const projResp = await fetch(`${lastCloudAuth.base}/2.0/projects/${encodeURIComponent(lastCloudAuth.projectId)}`, { headers: headersAuth });
@@ -911,13 +1253,11 @@ $("btnUploadTc").addEventListener("click", async () => {
     }
 
     const parentId = lastCloudAuth.parentFolderId;
-    if (!parentId) throw new Error("Fant ikke mappe-ID (parentId) i prosjektet. Bruk '2A. Last ned' i stedet.");
+    if (!parentId) throw new Error("Fant ikke mappe-ID i prosjektet. Bruk '2A. Last ned IFC'.");
 
     const fileBlob = new Blob([generatedIfcText], { type: "application/octet-stream" });
     const uploadEndpoint = `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`;
 
-    // METODE A: Prøv direkte Multipart FormData POST (Standard i TC API v2.0 for enkeltfiler)
-    setStatus(`Sender '${fileName}' til TC-mappen...`);
     const formData = new FormData();
     formData.append("file", new File([fileBlob], fileName, { type: "application/octet-stream" }));
 
@@ -930,8 +1270,6 @@ $("btnUploadTc").addEventListener("click", async () => {
     if (multiResp.ok) {
       const multiData = await multiResp.json().catch(() => ({}));
       const maybePresignedUrl = findUrlInObject(multiData);
-
-      // Hvis serveren likevel svarte med en presigned uploadUrl, fullfører vi PUT-steget:
       if (maybePresignedUrl && !multiData?.id && !multiData?.versionId) {
         const putResp = await fetch(maybePresignedUrl, {
           method: "PUT",
@@ -940,52 +1278,30 @@ $("btnUploadTc").addEventListener("click", async () => {
         });
         if (!putResp.ok) throw new Error(`Sky-lagring (PUT) feilet med HTTP ${putResp.status}`);
       }
-
-      console.log("TC Upload suksess (Multipart):", multiData);
-      setStatus(`✅ '${fileName}' er lagret direkte i Trimble Connect-prosjektet!`, "ok");
+      setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
       return;
     }
 
-    // METODE B: 2-trinns JSON init -> PUT presigned URL -> Commit
     const initResp = await fetch(uploadEndpoint, {
       method: "POST",
-      headers: {
-        ...headersAuth,
-        "Content-Type": "application/json"
-      },
+      headers: { ...headersAuth, "Content-Type": "application/json" },
       body: JSON.stringify({ name: fileName, size: fileBlob.size })
     });
 
     const initData = await initResp.json().catch(() => ({}));
-    console.log("TC Upload init-svar:", initData);
-
-    // Sjekk om filen allerede ble opprettet direkte, eller om vi fikk en URL hvor som helst i JSON-treet
     const uploadUrl = findUrlInObject(initData);
-    if (!uploadUrl) {
-      const keys = Object.keys(initData || {}).join(", ") || `HTTP ${initResp.status}`;
-      throw new Error(`TC-serveren avviste direkte opplasting (${keys}). Bruk '2A. Last ned' i stedet.`);
-    }
+    if (!uploadUrl) throw new Error("TC avviste direkte opplasting. Bruk '2A. Last ned IFC'.");
 
     const putResp = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": "application/octet-stream" },
       body: fileBlob
     });
+    if (!putResp.ok) throw new Error(`Opplasting feilet (HTTP ${putResp.status})`);
 
-    if (!putResp.ok) throw new Error(`Opplasting av fildata feilet (HTTP ${putResp.status})`);
-
-    if (initData?.uploadId) {
-      await fetch(`${lastCloudAuth.base}/2.0/files/fs/upload/${encodeURIComponent(initData.uploadId)}/commit`, {
-        method: "POST",
-        headers: { ...headersAuth, "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      }).catch(() => {});
-    }
-
-    setStatus(`✅ '${fileName}' er lagret i Trimble Connect-prosjektet!`, "ok");
+    setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
   } catch (err) {
-    console.error("Opplastingsfeil:", err);
-    setStatus(err.message || String(err), "err");
+    setStatus(err.message || String(err), "error");
   } finally {
     $("btnUploadTc").disabled = false;
   }

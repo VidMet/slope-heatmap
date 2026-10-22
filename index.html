@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v4.1</title>
+  <title>Fallanalyse HeatMap v4.2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -16,7 +16,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); height: 100%; margin: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; min-width: 380px; }
 
-    /* HEADER STYLING FRA MENGDEUTTAK R761 */
+    /* HEADER STYLING */
     .topbar {
       height: 92px; background: #fff; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: 18px; padding: 10px 18px; flex: 0 0 auto;
@@ -112,7 +112,7 @@
     <img src="norconsult-logo-black.png" alt="Norconsult">
   </div>
   <div class="app-title">
-    <b>Fallanalyse HeatMap v4.1</b>
+    <b>Fallanalyse HeatMap v4.2</b>
     <span>Norconsult Norge</span>
     <em>Developed by Norconsult Norge AS, AI-assisted development. Contact: Vidar.Metveit@norconsult.com</em>
   </div>
@@ -233,7 +233,8 @@ let userEditedFileName = false;
 let lastCloudAuth = {
   token: null,
   projectId: null,
-  parentFolderId: null,
+  rootFolderId: null,
+  modelFolderId: null,
   base: "https://app21.connect.trimble.com/tc/api"
 };
 
@@ -449,7 +450,9 @@ async function ensureCloudAuth() {
   const project = await safeApiCall(() => API.project.getProject(), 3500, null);
   if (project) {
     lastCloudAuth.projectId = project.id || lastCloudAuth.projectId;
-    lastCloudAuth.parentFolderId = project.rootId || project.rootFolderId || lastCloudAuth.parentFolderId;
+    if (project.rootId || project.rootFolderId) {
+      lastCloudAuth.rootFolderId = String(project.rootId || project.rootFolderId);
+    }
     lastCloudAuth.base = coreBase(project.location);
   }
   return Boolean(lastCloudAuth.token);
@@ -480,7 +483,6 @@ async function fetchSingleModelIfc(modelId) {
   const fileId = String(meta.id || loaded?.id || modelId);
   const versionId = String(meta.versionId || loaded?.versionId || modelId);
   if (meta.projectId) lastCloudAuth.projectId = String(meta.projectId);
-  if (meta.parentId) lastCloudAuth.parentFolderId = String(meta.parentId);
 
   const headers = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
 
@@ -488,7 +490,9 @@ async function fetchSingleModelIfc(modelId) {
     const metaResp = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers });
     if (metaResp.ok) {
       const metaJson = await metaResp.json();
-      if (metaJson?.parentId) lastCloudAuth.parentFolderId = String(metaJson.parentId);
+      if (metaJson?.parentId && (!metaJson.parentType || String(metaJson.parentType).toUpperCase() === "FOLDER")) {
+        lastCloudAuth.modelFolderId = String(metaJson.parentId);
+      }
       if (metaJson?.projectId) lastCloudAuth.projectId = String(metaJson.projectId);
     }
   } catch {}
@@ -652,7 +656,7 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 }
 
 // ============================================================================
-// INTERAKTIV 3D & 2D MOTOR (ORBIT, PAN, ZOOM, Z-SKALA OG KLIKK-DETEKSJON)
+// INTERAKTIV 3D & 2D MOTOR
 // ============================================================================
 const viewerState = {
   mode: "3d",
@@ -766,7 +770,6 @@ function renderViewport() {
   const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
   const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
 
-  // 3D-bunnrutenett under modellen
   ctx.strokeStyle = "#d5dde6";
   ctx.lineWidth = 1;
   const gridSteps = 6;
@@ -864,7 +867,6 @@ function renderViewport() {
     }
   }
 
-  // 3D-kompass oppe til høyre
   const ox = w - 42, oy = 42, axisLen = 24;
   const origin2d = { sx: ox, sy: oy };
   const axes = [
@@ -1096,7 +1098,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.1'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.2'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -1213,30 +1215,11 @@ $("btnDownloadIfc").addEventListener("click", () => {
   setStatus(`Filen '${outName}' ble lastet ned!`, "ok");
 });
 
-// Hjelpefunksjon som finner riktig mappe-ID (parentId) i Trimble Connect-prosjektet
-async function resolveTargetFolderId(headersAuth) {
-  if (lastCloudAuth.parentFolderId) return lastCloudAuth.parentFolderId;
+// Returnerer en liste med verifiserte FOLDER-IDer (modellmappe først, deretter prosjektets rotmappe)
+async function getVerifiedFolderCandidates(headersAuth) {
+  const candidates = [];
 
-  const selectedIds = getSelectedModelIds();
-  for (const mid of selectedIds) {
-    const loaded = await safeApiCall(() => API.viewer.getLoadedModel(mid), 3500, null);
-    const meta = loaded?.file || {};
-    if (meta.parentId) return String(meta.parentId);
-
-    const fileId = String(meta.id || loaded?.id || mid);
-    try {
-      const r = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers: headersAuth });
-      if (r.ok) {
-        const d = await r.json();
-        if (d?.parentId) {
-          lastCloudAuth.parentFolderId = String(d.parentId);
-          if (d?.projectId) lastCloudAuth.projectId = String(d.projectId);
-          return lastCloudAuth.parentFolderId;
-        }
-      }
-    } catch {}
-  }
-
+  // 1. Slå alltid opp prosjektets rotmappe (rootId) via /2.0/projects/{projectId} (100% garantert en ekte FOLDER)
   if (lastCloudAuth.projectId) {
     for (const ver of ["2.0", "2.1"]) {
       try {
@@ -1245,14 +1228,123 @@ async function resolveTargetFolderId(headersAuth) {
           const d = await r.json();
           const root = d?.rootId || d?.rootFolderId || d?.rootFolder?.id;
           if (root) {
-            lastCloudAuth.parentFolderId = String(root);
-            return lastCloudAuth.parentFolderId;
+            lastCloudAuth.rootFolderId = String(root);
+            break;
           }
         }
       } catch {}
     }
   }
-  return null;
+
+  // 2. Sjekk om kildemodellens parentId er en verifisert FOLDER
+  const selectedIds = getSelectedModelIds();
+  for (const mid of selectedIds) {
+    const loaded = await safeApiCall(() => API.viewer.getLoadedModel(mid), 3500, null);
+    const meta = loaded?.file || {};
+    const fileId = String(meta.id || loaded?.id || mid);
+    try {
+      const r = await fetch(`${lastCloudAuth.base}/2.0/files/${encodeURIComponent(fileId)}`, { headers: headersAuth });
+      if (r.ok) {
+        const d = await r.json();
+        if (d?.projectId && !lastCloudAuth.projectId) lastCloudAuth.projectId = String(d.projectId);
+        if (d?.parentId && (!d.parentType || String(d.parentType).toUpperCase() === "FOLDER")) {
+          // Dobbeltsjekk at parentId faktisk er en FOLDER ved å spørre /2.0/folders/{parentId}
+          const fr = await fetch(`${lastCloudAuth.base}/2.0/folders/${encodeURIComponent(d.parentId)}`, { headers: headersAuth });
+          if (fr.ok) {
+            candidates.push(String(d.parentId));
+            break;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  if (lastCloudAuth.modelFolderId && !candidates.includes(lastCloudAuth.modelFolderId)) {
+    candidates.push(lastCloudAuth.modelFolderId);
+  }
+  if (lastCloudAuth.rootFolderId && !candidates.includes(lastCloudAuth.rootFolderId)) {
+    candidates.push(lastCloudAuth.rootFolderId);
+  }
+
+  return candidates;
+}
+
+// Utfører selve opplastingen (Init -> PUT til S3 -> Commit) mot en gitt mappe-ID
+async function attemptTcFolderUpload(folderId, fileName, fileBlob, headersAuth, diagnostics) {
+  const initEndpoints = [
+    {
+      label: "TC-v2-standard",
+      url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(folderId)}&parentType=FOLDER`,
+      body: { name: fileName }
+    },
+    {
+      label: "TC-v2-med-parent-i-body",
+      url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(folderId)}&parentType=FOLDER`,
+      body: { name: fileName, parentId: folderId, parentType: "FOLDER" }
+    },
+    {
+      label: "TC-v2-contents-array",
+      url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(folderId)}&parentType=FOLDER`,
+      body: { name: fileName, contents: [{ name: fileName, size: fileBlob.size }] }
+    }
+  ];
+
+  for (const ep of initEndpoints) {
+    try {
+      const resp = await fetch(ep.url, {
+        method: "POST",
+        headers: { ...headersAuth, "Content-Type": "application/json" },
+        body: JSON.stringify(ep.body)
+      });
+
+      const data = await resp.json().catch(() => null);
+      diagnostics.push({ folderId, strategy: ep.label, status: resp.status, body: data });
+
+      if (!resp.ok) continue;
+
+      const uploadUrl = findUrlInObject(data);
+      const uploadId = data?.uploadId || data?.id || data?.contents?.[0]?.uploadId;
+
+      if (uploadUrl) {
+        // VIKTIG: S3 Presigned PUT skal IKKE ha Trimble sitt Authorization-header!
+        let putResp = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: fileBlob
+        }).catch(() => null);
+
+        if (!putResp || !putResp.ok) {
+          putResp = await fetch(uploadUrl, {
+            method: "PUT",
+            body: fileBlob
+          });
+        }
+
+        if (putResp && putResp.ok) {
+          // Fullfør opplastingen i Trimble Connect (Commit)
+          if (uploadId) {
+            for (const action of ["commit", "complete"]) {
+              const cr = await fetch(
+                `${lastCloudAuth.base}/2.0/files/fs/upload/${encodeURIComponent(uploadId)}/${action}?parentId=${encodeURIComponent(folderId)}&parentType=FOLDER`,
+                {
+                  method: "POST",
+                  headers: { ...headersAuth, "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: fileName, uploadId })
+                }
+              ).catch(() => null);
+              if (cr && cr.ok) break;
+            }
+          }
+          return true;
+        }
+      } else if (data?.id && data?.versionId) {
+        return true;
+      }
+    } catch (e) {
+      diagnostics.push({ folderId, strategy: ep.label, error: e.message });
+    }
+  }
+  return false;
 }
 
 $("btnUploadTc").addEventListener("click", async () => {
@@ -1264,102 +1356,34 @@ $("btnUploadTc").addEventListener("click", async () => {
     const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
     generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, fileName);
 
-    setStatus(`Finner prosjektmappe i Trimble Connect...`, "warn");
+    setStatus(`Verifiserer prosjektmappe i Trimble Connect...`, "warn");
     await ensureCloudAuth();
     if (!lastCloudAuth.token) throw new Error("Mangler tilgangstoken til Trimble Connect.");
 
     const headersAuth = { Authorization: `Bearer ${lastCloudAuth.token}`, Accept: "application/json" };
-    const parentId = await resolveTargetFolderId(headersAuth);
-    if (!parentId) throw new Error("Fant ikke mappe-ID (parentId) i prosjektet. Bruk '2A. Last ned IFC'.");
+    const folderCandidates = await getVerifiedFolderCandidates(headersAuth);
+
+    if (!folderCandidates.length) {
+      throw new Error("Fant ingen gyldig prosjektmappe (rootId). Bruk '2A. Last ned IFC'.");
+    }
 
     const fileBlob = new Blob([generatedIfcText], { type: "application/octet-stream" });
-    const fileObj = new File([fileBlob], fileName, { type: "application/octet-stream" });
     const diagnostics = [];
 
-    setStatus(`Laster opp '${fileName}' til mappe ${parentId}...`, "warn");
-
-    // STRATEGI 1: TC v2.0 Multipart med parentId både i URL og FormData
-    try {
-      const fd = new FormData();
-      fd.append("parentId", parentId);
-      fd.append("parentType", "FOLDER");
-      fd.append("files", fileObj, fileName);
-      fd.append("file", fileObj, fileName);
-
-      const r1 = await fetch(
-        `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`,
-        { method: "POST", headers: { Authorization: `Bearer ${lastCloudAuth.token}` }, body: fd }
-      );
-      const b1 = await r1.json().catch(() => null);
-      diagnostics.push({ strategy: "1-multipart-fs-upload", status: r1.status, body: b1 });
-
-      if (r1.ok) {
-        const putUrl = findUrlInObject(b1);
-        if (putUrl && !b1?.id && !b1?.versionId && !Array.isArray(b1)) {
-          const pr = await fetch(putUrl, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: fileBlob });
-          if (pr.ok) {
-            setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
-            return;
-          }
-        } else {
-          setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
-          return;
-        }
-      }
-    } catch (e) { diagnostics.push({ strategy: "1-error", error: e.message }); }
-
-    // STRATEGI 2: TC v2.0 Initier opplasting med ulike JSON-strukturer som app21 bruker
-    const initPayloads = [
-      { url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`, body: { name: fileName, parentId, parentType: "FOLDER" } },
-      { url: `${lastCloudAuth.base}/2.0/files/fs/upload?parentId=${encodeURIComponent(parentId)}&parentType=FOLDER`, body: { files: [{ name: fileName, size: fileBlob.size }] } },
-      { url: `${lastCloudAuth.base}/2.0/files/fs/upload`, body: { parentId, parentType: "FOLDER", contents: [{ name: fileName, size: fileBlob.size }] } },
-      { url: `${lastCloudAuth.base}/2.0/files/fs/${encodeURIComponent(parentId)}/uploadurl?name=${encodeURIComponent(fileName)}`, method: "GET" }
-    ];
-
-    for (const attempt of initPayloads) {
-      try {
-        const resp = await fetch(attempt.url, {
-          method: attempt.method || "POST",
-          headers: attempt.method === "GET" ? headersAuth : { ...headersAuth, "Content-Type": "application/json" },
-          body: attempt.body ? JSON.stringify(attempt.body) : undefined
-        });
-        const data = await resp.json().catch(() => null);
-        diagnostics.push({ strategy: attempt.url, status: resp.status, body: data });
-
-        if (!resp.ok) continue;
-
-        const uploadUrl = findUrlInObject(data);
-        if (uploadUrl) {
-          const putResp = await fetch(uploadUrl, {
-            method: "PUT",
-            headers: { "Content-Type": "application/octet-stream" },
-            body: fileBlob
-          });
-          if (putResp.ok) {
-            const upId = data?.uploadId || data?.id || data?.contents?.[0]?.uploadId;
-            if (upId) {
-              await fetch(`${lastCloudAuth.base}/2.0/files/fs/upload/${encodeURIComponent(upId)}/commit`, {
-                method: "POST",
-                headers: { ...headersAuth, "Content-Type": "application/json" },
-                body: JSON.stringify({ parentId, parentType: "FOLDER", name: fileName })
-              }).catch(() => {});
-            }
-            setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
-            return;
-          }
-        } else if (data?.id || data?.versionId) {
-          setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
-          return;
-        }
-      } catch (e) {
-        diagnostics.push({ strategy: attempt.url, error: e.message });
+    for (const folderId of folderCandidates) {
+      setStatus(`Laster opp '${fileName}' til TC-mappe (${folderId})...`, "warn");
+      const ok = await attemptTcFolderUpload(folderId, fileName, fileBlob, headersAuth, diagnostics);
+      if (ok) {
+        console.log("TC UPLOAD SUKSESS:", diagnostics);
+        setStatus(`Lagret '${fileName}' i Trimble Connect!`, "ok");
+        return;
       }
     }
 
-    console.error("TC UPLOAD DIAGNOSTIKK:", diagnostics);
-    const firstStatus = diagnostics.find(d => d.status)?.status || "Ukjent";
-    const firstMsg = diagnostics.find(d => d.body?.message || d.body?.errorcode)?.body?.message || `HTTP ${firstStatus}`;
-    throw new Error(`TC avviste opplasting (${firstMsg}). Se Console (F12) eller bruk '2A. Last ned IFC'.`);
+    console.error("TC UPLOAD DIAGNOSTIKK (v4.2):", diagnostics);
+    const lastErr = diagnostics.find(d => d.body?.message || d.body?.errorcode);
+    const reason = lastErr ? `${lastErr.body.errorcode || ""} ${lastErr.body.message || ""}`.trim() : `HTTP ${diagnostics[0]?.status || "feil"}`;
+    throw new Error(`TC avviste opplasting (${reason}). Se Console (F12) eller bruk '2A. Last ned IFC'.`);
   } catch (err) {
     setStatus(err.message || String(err), "error");
   } finally {

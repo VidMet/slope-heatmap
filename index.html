@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v4.4</title>
+  <title>Fallanalyse HeatMap v4.5</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -58,16 +58,47 @@
     .filter-group select:disabled { opacity: 0.45; cursor: not-allowed; }
     .filter-group input:focus, .filter-group select:focus { border-color: var(--blue); }
 
+    /* NEDTREKKSMENYER MED VENSTREJUSTERT TEKST OG HØYREJUSTERT CHECKBOX */
     .multi-select { position: relative; flex: 1; min-width: 170px; user-select: none; }
     .multi-select.disabled { opacity: 0.45; pointer-events: none; }
     .multi-select-header { font-family: var(--mono); font-size: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .multi-select-header::after { content: '▼'; font-size: 10px; margin-left: 8px; color: var(--muted); }
-    .multi-select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; max-height: 250px; overflow-y: auto; border-radius: 4px; margin-top: 4px; }
-    .multi-select-dropdown label { display: flex; align-items: center; padding: 7px 10px; cursor: pointer; font-size: 11px; font-family: var(--mono); color: var(--ink); border-bottom: 1px solid var(--surface2); }
+    .multi-select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; max-height: 260px; overflow-y: auto; border-radius: 4px; margin-top: 4px; }
+    .multi-select-dropdown label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 12px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--ink);
+      border-bottom: 1px solid var(--surface2);
+      text-align: left;
+    }
     .multi-select-dropdown label:last-child { border-bottom: none; }
     .multi-select-dropdown label:hover { background: var(--bg); }
-    .multi-select-dropdown input[type="checkbox"] { margin-right: 8px; cursor: pointer; flex-shrink: 0; }
-    .val-count { margin-left: auto; padding-left: 8px; font-size: 10px; color: var(--muted); }
+    .multi-select-dropdown .item-text {
+      flex: 1;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .multi-select-dropdown .val-count {
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .multi-select-dropdown input[type="checkbox"] {
+      margin: 0;
+      cursor: pointer;
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+      accent-color: var(--blue);
+    }
 
     main { flex: 1 1 auto; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -115,7 +146,7 @@
     <img src="norconsult-logo-black.png" alt="Norconsult">
   </div>
   <div class="app-title">
-    <b>Fallanalyse HeatMap v4.4</b>
+    <b>Fallanalyse HeatMap v4.5</b>
     <span>Norconsult Norge</span>
     <em>Developed by Norconsult Norge AS, AI-assisted development. Contact: Vidar.Metveit@norconsult.com</em>
   </div>
@@ -250,9 +281,9 @@
 <script>
 let API = null;
 let visibleModels = [];
-let cachedIfcModels = new Map(); // cacheKey -> { fileName, text, metadata }
-let scannedProductsList = [];    // Alle fysiske objekter og deres egenskaper fra siste skann
-let discoveredPropsMap = new Map(); // propName -> Map(propVal -> objectCount)
+let cachedIfcModels = new Map();
+let scannedProductsList = [];
+let discoveredPropsMap = new Map();
 let analyzedTriangles = [];
 let generatedIfcText = null;
 let userEditedFileName = false;
@@ -391,7 +422,7 @@ $("localIfcInput").addEventListener("change", (e) => {
 });
 
 // ============================================================================
-// STEP-TEKSTDEKODER (Norske ÆØÅ / UTF-16 hex \X2\...\X0\)
+// STEP-TEKSTDEKODER & MULTI-LINE LESER (Håndterer linjeskift midt i IFC-lister)
 // ============================================================================
 function decodeStepString(raw) {
   if (!raw) return "";
@@ -446,6 +477,41 @@ function extractStepScalarValue(rawArg) {
   return s;
 }
 
+// Itererer gjennom alle komplette #-entiteter i en IFC-tekst, selv om en entitet går over mange linjer!
+function forEachStepEntity(ifcText, callback) {
+  const lines = ifcText.split(/\r?\n/);
+  let currentStmt = "";
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    if (!currentStmt) {
+      if (line.charCodeAt(0) !== 35) continue; // Må starte med '#'
+      currentStmt = line;
+    } else {
+      currentStmt += " " + line;
+    }
+
+    if (currentStmt.endsWith(";")) {
+      const stmt = currentStmt;
+      currentStmt = "";
+
+      const eqIdx = stmt.indexOf("=");
+      if (eqIdx === -1) continue;
+      const id = parseInt(stmt.slice(1, eqIdx), 10);
+      const rest = stmt.slice(eqIdx + 1).trim();
+      const parenIdx = rest.indexOf("(");
+      if (parenIdx === -1) continue;
+      const type = rest.slice(0, parenIdx).trim().toUpperCase();
+      const lastParen = rest.lastIndexOf(")");
+      if (lastParen === -1) continue;
+      const args = rest.slice(parenIdx + 1, lastParen);
+      callback(id, type, args);
+    }
+  }
+}
+
 // ============================================================================
 // TRIMBLE CONNECT OPPKOBLING & MODELLHENTING
 // ============================================================================
@@ -498,13 +564,20 @@ async function syncVisibleModels() {
       return;
     }
 
+    // Venstrejustert tekst, høyrejustert checkbox
     const alleLabel = document.createElement('label');
-    alleLabel.innerHTML = `<input type="checkbox" id="selectAllModels" checked> <strong style="color:var(--blue)">Velg alle synlige modeller (${visibleModels.length})</strong>`;
+    alleLabel.innerHTML = `
+      <span class="item-text"><strong style="color:var(--blue)">Velg alle synlige modeller (${visibleModels.length})</strong></span>
+      <input type="checkbox" id="selectAllModels" checked>
+    `;
     dropdown.appendChild(alleLabel);
 
     visibleModels.forEach(m => {
       const label = document.createElement('label');
-      label.innerHTML = `<input type="checkbox" class="model-checkbox" value="${m.id}" data-name="${m.name.replace(/"/g, '&quot;')}" checked> <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${m.name}">${m.name}</span>`;
+      label.innerHTML = `
+        <span class="item-text" title="${m.name}">${m.name}</span>
+        <input type="checkbox" class="model-checkbox" value="${m.id}" data-name="${m.name.replace(/"/g, '&quot;')}" checked>
+      `;
       dropdown.appendChild(label);
     });
 
@@ -625,7 +698,6 @@ async function fetchSingleModelIfc(modelId) {
   return entry;
 }
 
-// Henter alle valgte IFC-modeller (fra lokal fil eller sky-cache)
 async function getActiveModelEntries() {
   const selectedIds = getSelectedModelIds();
   const localFiles = Array.from($("localIfcInput")?.files || []);
@@ -656,61 +728,42 @@ async function getActiveModelEntries() {
 }
 
 // ============================================================================
-// STEG 1: LYNRASK METADATA-SKANNER (Ignorerer alle tunge 3D-koordinatlister!)
+// STEG 1: METADATA-SKANNER (Med full støtte for Novapoint IfcSlab, IfcRelAggregates og dype geometritrær!)
 // ============================================================================
-const HEAVY_GEOM_PREFIXES = [
+const PURE_COORDINATE_TYPES = new Set([
   "IFCCARTESIANPOINT",
-  "IFCTRIANGULATEDFACESET",
-  "IFCPOLYGONALFACESET",
-  "IFCINDEXEDPOLYGONALFACE",
-  "IFCPOLYLOOP",
+  "IFCCARTESIANPOINTLIST3D",
+  "IFCCARTESIANPOINTLIST2D",
   "IFCDIRECTION",
-  "IFCAXIS2PLACEMENT",
-  "IFCLOCALPLACEMENT",
-  "IFCCOLOURRGB",
-  "IFCSURFACESTYLE",
-  "IFCSTYLEDITEM"
-];
+  "IFCVECTOR"
+]);
 
 function scanIfcMetadataFast(entry) {
   if (entry.metadata) return entry.metadata;
 
   const metaEntities = new Map();
-  const lines = entry.text.split(/\r?\n/);
   let unitScale = 1.0;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.charCodeAt(0) !== 35) continue;
-    const eqIdx = line.indexOf("=");
-    if (eqIdx === -1) continue;
-    const rest = line.slice(eqIdx + 1).trim();
-    const parenIdx = rest.indexOf("(");
-    if (parenIdx === -1) continue;
-    const type = rest.slice(0, parenIdx).trim().toUpperCase();
-
-    // Sjekk enhet (mm vs m)
+  forEachStepEntity(entry.text, (id, type, args) => {
     if (type === "IFCSIUNIT") {
-      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
       if (args.includes(".LENGTHUNIT.") && args.includes(".MILLI.")) unitScale = 0.001;
-      continue;
+      return;
+    }
+    // Vi hopper kun over selve koordinatlistene i Steg 1, men tar vare på relasjoner og struktur!
+    if (PURE_COORDINATE_TYPES.has(type)) return;
+
+    // For IFCTRIANGULATEDFACESET / IFCPOLYGONALFACESET i Steg 1 lagrer vi kun en tom markør så treet finner dem
+    if (type === "IFCTRIANGULATEDFACESET" || type === "IFCPOLYGONALFACESET" || type === "IFCINDEXEDPOLYGONALFACE") {
+      metaEntities.set(id, { type, args: "" });
+      return;
     }
 
-    // HOPP OVER alle tunge 3D-punkt og trekant-entiteter (utgjør 95% av filen!)
-    let isHeavy = false;
-    for (let k = 0; k < HEAVY_GEOM_PREFIXES.length; k++) {
-      if (type.startsWith(HEAVY_GEOM_PREFIXES[k])) { isHeavy = true; break; }
-    }
-    if (isHeavy) continue;
-
-    const id = parseInt(line.slice(1, eqIdx), 10);
-    const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
     metaEntities.set(id, { type, args });
-  }
+  });
 
   const parseRefs = str => (str.match(/#\d+/g) || []).map(r => parseInt(r.slice(1), 10));
 
-  // 1. Les alle IFCPROPERTYSINGLEVALUE og IFCELEMENTQUANTITY
+  // 1. Les alle enkelt-egenskaper og mengder
   const singleProps = new Map();
   const propSets = new Map();
 
@@ -720,7 +773,7 @@ function scanIfcMetadataFast(entry) {
       const pName = decodeStepString(parts[0]);
       const pVal = extractStepScalarValue(parts[2]);
       if (pName && pVal !== "") singleProps.set(id, { name: pName, val: pVal });
-    } else if (ent.type === "IFCQUANTITYAREA" || ent.type === "IFCQUANTITYVOLUME" || ent.type === "IFCQUANTITYLENGTH") {
+    } else if (ent.type === "IFCQUANTITYAREA" || ent.type === "IFCQUANTITYVOLUME" || ent.type === "IFCQUANTITYLENGTH" || ent.type === "IFCQUANTITYCOUNT" || ent.type === "IFCQUANTITYWEIGHT") {
       const parts = splitStepTopLevelArgs(ent.args);
       const qName = decodeStepString(parts[0]);
       const qVal = extractStepScalarValue(parts[3]);
@@ -731,12 +784,22 @@ function scanIfcMetadataFast(entry) {
     }
   }
 
-  // 2. Koble PropertySets til fysiske objekter via IFCRELDEFINESBYPROPERTIES
+  // 2. Koble PropertySets og Materialer (IFCRELASSOCIATESMATERIAL) til objekter
   const objectPropsMap = new Map();
   const ensureObjProps = (pid) => {
     if (!objectPropsMap.has(pid)) objectPropsMap.set(pid, { Modell: entry.fileName });
     return objectPropsMap.get(pid);
   };
+
+  // Les også IFCMATERIAL i tilfelle Materiale er tilknyttet via IfcRelAssociatesMaterial
+  const materialNames = new Map();
+  for (const [id, ent] of metaEntities) {
+    if (ent.type === "IFCMATERIAL") {
+      const parts = splitStepTopLevelArgs(ent.args);
+      const mName = decodeStepString(parts[0]);
+      if (mName) materialNames.set(id, mName);
+    }
+  }
 
   for (const [, ent] of metaEntities) {
     if (ent.type === "IFCRELDEFINESBYPROPERTIES") {
@@ -744,71 +807,137 @@ function scanIfcMetadataFast(entry) {
       if (parts.length >= 6) {
         const relatedObjects = parseRefs(parts[4]);
         const relatingPsetRefs = parseRefs(parts[5]);
-        const psetId = relatingPsetRefs[0];
-        const propIds = propSets.get(psetId);
-        if (propIds && relatedObjects.length) {
+        for (const psetId of relatingPsetRefs) {
+          const propIds = propSets.get(psetId);
+          if (propIds && relatedObjects.length) {
+            for (const objId of relatedObjects) {
+              const bag = ensureObjProps(objId);
+              for (const propId of propIds) {
+                const kv = singleProps.get(propId);
+                if (kv && kv.name && kv.val !== "") bag[kv.name] = kv.val;
+              }
+            }
+          }
+        }
+      }
+    } else if (ent.type === "IFCRELDEFINESBYTYPE") {
+      // Arv egenskaper fra IfcTypeProduct (f.eks. IfcSlabType)
+      const parts = splitStepTopLevelArgs(ent.args);
+      if (parts.length >= 6) {
+        const relatedObjects = parseRefs(parts[4]);
+        const typeRefs = parseRefs(parts[5]);
+        const typeBag = objectPropsMap.get(typeRefs[0]);
+        if (typeBag) {
           for (const objId of relatedObjects) {
             const bag = ensureObjProps(objId);
-            for (const propId of propIds) {
-              const kv = singleProps.get(propId);
-              if (kv && kv.name && kv.val !== "") bag[kv.name] = kv.val;
+            for (const [k, v] of Object.entries(typeBag)) {
+              if (!bag[k]) bag[k] = v;
             }
+          }
+        }
+      }
+    } else if (ent.type === "IFCRELASSOCIATESMATERIAL") {
+      const parts = splitStepTopLevelArgs(ent.args);
+      if (parts.length >= 6) {
+        const relatedObjects = parseRefs(parts[4]);
+        const matRefs = parseRefs(parts[5]);
+        const matName = materialNames.get(matRefs[0]);
+        if (matName) {
+          for (const objId of relatedObjects) {
+            const bag = ensureObjProps(objId);
+            if (!bag["Materiale"]) bag["Materiale"] = matName;
           }
         }
       }
     }
   }
 
-  // 3. Finn alle produkter med 3D-representasjon (IFCPRODUCTDEFINITIONSHAPE)
-  // og koble geometritreet nedover til eier-produktet
+  // 3. Finn alle produkter (IfcProduct) og arv egenskaper mellom foreldre/barn via IFCRELAGGREGATES
+  const childToParentProduct = new Map();
+  for (const [, ent] of metaEntities) {
+    if (ent.type === "IFCRELAGGREGATES" || ent.type === "IFCRELVOIDSELEMENT" || ent.type === "IFCRELFILLSELEMENT") {
+      const parts = splitStepTopLevelArgs(ent.args);
+      if (parts.length >= 6) {
+        const parentRef = parseRefs(parts[4])[0];
+        const childRefs = parseRefs(parts[5]);
+        if (parentRef) {
+          for (const cRef of childRefs) childToParentProduct.set(cRef, parentRef);
+        }
+      }
+    }
+  }
+
   const geomToProductMap = new Map();
-  const products = new Map(); // productId -> props
+  const products = new Map();
   const SKIP_TYPES = new Set(["IFCPROJECT", "IFCSITE", "IFCBUILDING", "IFCBUILDINGSTOREY"]);
 
-  function registerGeomTree(rootRefs, productId, depth = 0) {
-    if (depth > 8) return;
+  // Universell traversering fra IFCPRODUCTDEFINITIONSHAPE ned til alle underliggende geometrinoder!
+  function registerGeomTreeUniversal(rootRefs, productId, depth = 0) {
+    if (depth > 14) return;
     for (const ref of rootRefs) {
       if (!geomToProductMap.has(ref)) geomToProductMap.set(ref, productId);
       const childEnt = metaEntities.get(ref);
-      if (!childEnt) continue;
-      if (
-        childEnt.type === "IFCPRODUCTDEFINITIONSHAPE" ||
-        childEnt.type === "IFCSHAPEREPRESENTATION" ||
-        childEnt.type === "IFCMAPPEDITEM" ||
-        childEnt.type === "IFCREPRESENTATIONMAP" ||
-        childEnt.type === "IFCFACETEDBREP" ||
-        childEnt.type === "IFCCLOSEDSHELL" ||
-        childEnt.type === "IFCOPENSHELL" ||
-        childEnt.type === "IFCFACEBASEDDSURFACEMODEL" ||
-        childEnt.type === "IFCSHELLBASEDSURFACEMODEL" ||
-        childEnt.type === "IFCFACE" ||
-        childEnt.type === "IFCFACEOUTERBOUND" ||
-        childEnt.type === "IFCFACEBOUND"
-      ) {
-        registerGeomTree(parseRefs(childEnt.args), productId, depth + 1);
+      if (!childEnt || !childEnt.args) continue;
+      // Ikke hopp inn i globale kontekst-noder
+      if (childEnt.type.includes("GEOMETRICREPRESENTATIONCONTEXT") || childEnt.type.includes("GEOMETRICREPRESENTATIONSUBCONTEXT")) continue;
+      if (childEnt.type === "IFCLOCALPLACEMENT" || childEnt.type === "IFCAXIS2PLACEMENT3D") continue;
+
+      const subRefs = parseRefs(childEnt.args);
+      if (subRefs.length > 0) {
+        registerGeomTreeUniversal(subRefs, productId, depth + 1);
       }
     }
   }
 
   for (const [id, ent] of metaEntities) {
     if (SKIP_TYPES.has(ent.type) || ent.type.startsWith("IFCREL") || ent.type.startsWith("IFCPROPERTY")) continue;
-    if (!ent.args.includes("#")) continue;
+    if (!ent.args || !ent.args.includes("#")) continue;
     const parts = splitStepTopLevelArgs(ent.args);
+
+    // Sjekk om dette er et IfcProduct (har en peker til IFCPRODUCTDEFINITIONSHAPE på indeks 6, eller hvor som helst i argumentene)
+    let repRef = null;
     if (parts.length >= 7 && parts[6].startsWith("#")) {
-      const repRef = parseInt(parts[6].slice(1), 10);
-      const repEnt = metaEntities.get(repRef);
-      if (repEnt && repEnt.type === "IFCPRODUCTDEFINITIONSHAPE") {
-        const bag = ensureObjProps(id);
-        bag["IfcClass"] = ent.type;
+      const candidate = parseInt(parts[6].slice(1), 10);
+      if (metaEntities.get(candidate)?.type === "IFCPRODUCTDEFINITIONSHAPE") repRef = candidate;
+    }
+    if (!repRef) {
+      for (const r of parseRefs(ent.args)) {
+        if (metaEntities.get(r)?.type === "IFCPRODUCTDEFINITIONSHAPE") { repRef = r; break; }
+      }
+    }
+
+    if (repRef || objectPropsMap.has(id)) {
+      const bag = ensureObjProps(id);
+      bag["IfcClass"] = ent.type;
+      if (parts.length >= 5) {
         const nameVal = decodeStepString(parts[2]);
         const descVal = decodeStepString(parts[3]);
         const objTypeVal = decodeStepString(parts[4]);
-        if (nameVal && nameVal !== "$") bag["Name (Navn)"] = nameVal;
+        if (nameVal && nameVal !== "$") {
+          bag["Name (Navn)"] = nameVal;
+          // I Novapoint ligger ofte objektnavnet etter '|' (f.eks. "p8-v_f-veg_13600 | Slitelag")
+          if (nameVal.includes("|")) {
+            bag["Delobjekt"] = nameVal.split("|").pop().trim();
+          }
+        }
         if (objTypeVal && objTypeVal !== "$") bag["ObjectType"] = objTypeVal;
         if (descVal && descVal !== "$") bag["Description"] = descVal;
+      }
+      products.set(id, bag);
+      if (repRef) registerGeomTreeUniversal([repRef], id, 0);
+    }
+  }
 
-        products.set(id, bag);
-        registerGeomTree([repRef], id, 0);
+  // Arv egenskaper fra foreldre-produkter ned til under-produkter (og motsatt hvis forelderen mangler dem)
+  for (const [childId, parentId] of childToParentProduct) {
+    const childBag = products.get(childId) || objectPropsMap.get(childId);
+    const parentBag = products.get(parentId) || objectPropsMap.get(parentId);
+    if (childBag && parentBag) {
+      for (const [k, v] of Object.entries(parentBag)) {
+        if (!childBag[k]) childBag[k] = v;
+      }
+      for (const [k, v] of Object.entries(childBag)) {
+        if (!parentBag[k]) parentBag[k] = v;
       }
     }
   }
@@ -818,21 +947,20 @@ function scanIfcMetadataFast(entry) {
 }
 
 // ============================================================================
-// STEG 2: SELEKTIV 3D-GEOMETRIDEKODER (Pakker KUN ut valgte objekter!)
+// STEG 2: SELEKTIV 3D-GEOMETRIDEKODER (Støtter linjeskift midt i koordinatlister!)
 // ============================================================================
 function extractFilteredTrianglesFromIfc(entry, filterFn) {
   const meta = scanIfcMetadataFast(entry);
   const { unitScale, products, geomToProductMap } = meta;
 
-  // Finn ut nøyaktig hvilke produkter i denne filen som matcher brukerens filter!
   const allowedProductIds = new Set();
   for (const [pid, props] of products) {
     if (filterFn(props)) allowedProductIds.add(pid);
   }
 
-  // Hvis det er satt et filter og ingen produkter i denne modellen matcher, hopper vi over hele 3D-parsingen!
   const defaultProps = { Modell: entry.fileName };
   const allowUnmapped = filterFn(defaultProps);
+
   if (products.size > 0 && allowedProductIds.size === 0 && !allowUnmapped) {
     return [];
   }
@@ -840,7 +968,6 @@ function extractFilteredTrianglesFromIfc(entry, filterFn) {
   const parseNums = str => (str.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g) || []).map(Number);
   const parseRefs = str => (str.match(/#\d+/g) || []).map(r => parseInt(r.slice(1), 10));
 
-  const lines = entry.text.split(/\r?\n/);
   const faceSets = [];
   const polyFaceSets = [];
   const indexedPolyFaces = new Map();
@@ -848,74 +975,48 @@ function extractFilteredTrianglesFromIfc(entry, filterFn) {
   const neededPointListIds = new Set();
   const neededCartPointIds = new Set();
 
-  // Pass 1: Finn kun FaceSets / PolyLoops som tilhører de godkjente objektene!
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.charCodeAt(0) !== 35) continue;
-    const eqIdx = line.indexOf("=");
-    if (eqIdx === -1) continue;
-    const rest = line.slice(eqIdx + 1).trim();
-    const parenIdx = rest.indexOf("(");
-    if (parenIdx === -1) continue;
-    const type = rest.slice(0, parenIdx).trim().toUpperCase();
-
+  // Pass 1: Finn kun FaceSets / PolyLoops som tilhører de valgte objektene
+  forEachStepEntity(entry.text, (id, type, args) => {
     if (type === "IFCTRIANGULATEDFACESET") {
-      const id = parseInt(line.slice(1, eqIdx), 10);
       const prodId = geomToProductMap.get(id);
-      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) return;
 
-      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
       const refs = parseRefs(args);
       if (refs.length > 0) {
         neededPointListIds.add(refs[0]);
         faceSets.push({ id, ptListId: refs[0], args, props: (prodId && products.get(prodId)) || defaultProps });
       }
     } else if (type === "IFCPOLYGONALFACESET") {
-      const id = parseInt(line.slice(1, eqIdx), 10);
       const prodId = geomToProductMap.get(id);
-      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) return;
 
-      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
       const refs = parseRefs(args);
       if (refs.length > 0) {
         neededPointListIds.add(refs[0]);
         polyFaceSets.push({ id, ptListId: refs[0], faceRefs: refs.slice(1), props: (prodId && products.get(prodId)) || defaultProps });
       }
     } else if (type === "IFCINDEXEDPOLYGONALFACE") {
-      const id = parseInt(line.slice(1, eqIdx), 10);
-      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
       indexedPolyFaces.set(id, args);
     } else if (type === "IFCPOLYLOOP") {
-      const id = parseInt(line.slice(1, eqIdx), 10);
       const prodId = geomToProductMap.get(id);
-      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) return;
 
-      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
       const refs = parseRefs(args);
       if (refs.length >= 3) {
         for (const r of refs) neededCartPointIds.add(r);
         polyLoops.push({ refs, props: (prodId && products.get(prodId)) || defaultProps });
       }
     }
-  }
+  });
 
-  // Pass 2: Dekod KUN de punktlistene (IFCCARTESIANPOINTLIST3D / IFCCARTESIANPOINT) som trengs av utvalget!
+  // Pass 2: Dekod KUN de punktlistene som trengs av de filtrerte objektene!
   const pointLists = new Map();
   const cartesianPoints = new Map();
+  const needCart = faceSets.length === 0 && polyFaceSets.length === 0 && neededCartPointIds.size > 0;
 
-  if (neededPointListIds.size > 0 || (faceSets.length === 0 && polyFaceSets.length === 0 && neededCartPointIds.size > 0)) {
-    const needCart = faceSets.length === 0 && polyFaceSets.length === 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.charCodeAt(0) !== 35) continue;
-      const eqIdx = line.indexOf("=");
-      if (eqIdx === -1) continue;
-      const id = parseInt(line.slice(1, eqIdx), 10);
-
-      if (neededPointListIds.has(id)) {
-        const rest = line.slice(eqIdx + 1).trim();
-        const parenIdx = rest.indexOf("(");
-        const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+  if (neededPointListIds.size > 0 || needCart) {
+    forEachStepEntity(entry.text, (id, type, args) => {
+      if (neededPointListIds.has(id) && type === "IFCCARTESIANPOINTLIST3D") {
         const coordLists = [];
         const tuples = args.match(/\(\s*[-+]?\d[^)]+\)/g) || [];
         for (const tup of tuples) {
@@ -923,26 +1024,23 @@ function extractFilteredTrianglesFromIfc(entry, filterFn) {
           if (nums.length >= 3) coordLists.push([nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
         }
         pointLists.set(id, coordLists);
-      } else if (needCart && neededCartPointIds.has(id)) {
-        const rest = line.slice(eqIdx + 1).trim();
-        const parenIdx = rest.indexOf("(");
-        const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      } else if (needCart && neededCartPointIds.has(id) && type === "IFCCARTESIANPOINT") {
         const nums = parseNums(args);
         if (nums.length >= 3) cartesianPoints.set(id, [nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
       }
-    }
+    });
   }
 
-  // Pass 3: Bygg trekanter kun for det filtrerte utvalget
+  // Pass 3: Bygg trekantene
   const rawTriangles = [];
 
   for (const fs of faceSets) {
     const pts = pointLists.get(fs.ptListId);
     if (!pts || !pts.length) continue;
-    const afterFirstParen = fs.args.indexOf("((", fs.args.indexOf("#"));
-    if (afterFirstParen === -1) continue;
-    const idxBlock = fs.args.slice(afterFirstParen);
-    const tuples = idxBlock.match(/\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g) || [];
+    const parts = splitStepTopLevelArgs(fs.args);
+    // I IFCTRIANGULATEDFACESET(Coordinates, Normals, Closed, CoordIndex, PnIndex) ligger CoordIndex på indeks 3
+    const coordIndexStr = parts[3] || fs.args;
+    const tuples = coordIndexStr.match(/\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g) || [];
     for (const tup of tuples) {
       const idx = parseNums(tup);
       const p1 = pts[idx[0] - 1], p2 = pts[idx[1] - 1], p3 = pts[idx[2] - 1];
@@ -993,11 +1091,11 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 
     const area = 0.5 * len;
     const absNz = Math.abs(nz) / len;
-    if (absNz < 0.90) continue;
+    if (absNz < 0.85) continue;
 
     const horizMag = Math.hypot(nx / len, ny / len);
     const slopePct = (horizMag / absNz) * 100;
-    if (slopePct > 35.0) continue;
+    if (slopePct > 45.0) continue;
 
     let category = "green";
     if (slopePct < critLimit) category = "red";
@@ -1015,7 +1113,7 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 }
 
 // ============================================================================
-// EGENSKAPSFILTER UI (FØR OG ETTER BEREGNING)
+// EGENSKAPSFILTER UI (Med venstrejustert tekst og høyrejustert checkbox)
 // ============================================================================
 async function scanModelPropertiesOnly() {
   const selectedIds = getSelectedModelIds();
@@ -1093,17 +1191,21 @@ $("propFilterSelect").addEventListener("change", () => {
     if (v === undefined || v === null || String(v).trim() === "") missingCount++;
   }
 
+  // Venstrejustert tekst, høyrejustert checkbox
   const allLabel = document.createElement("label");
-  allLabel.innerHTML = `<input type="checkbox" id="selectAllPropValues" checked> <strong style="color:var(--blue)">Velg alle verdier (${sortedVals.length})</strong>`;
+  allLabel.innerHTML = `
+    <span class="item-text"><strong style="color:var(--blue)">Velg alle verdier (${sortedVals.length})</strong></span>
+    <input type="checkbox" id="selectAllPropValues" checked>
+  `;
   valDropdown.appendChild(allLabel);
 
   for (const val of sortedVals) {
     const count = valMap.get(val);
     const lbl = document.createElement("label");
     lbl.innerHTML = `
-      <input type="checkbox" class="prop-val-cb" value="${val.replace(/"/g, '&quot;')}" checked>
-      <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${val}">${val}</span>
+      <span class="item-text" title="${val}">${val}</span>
       <span class="val-count">${count} obj</span>
+      <input type="checkbox" class="prop-val-cb" value="${val.replace(/"/g, '&quot;')}" checked>
     `;
     valDropdown.appendChild(lbl);
   }
@@ -1111,9 +1213,9 @@ $("propFilterSelect").addEventListener("change", () => {
   if (missingCount > 0) {
     const mLbl = document.createElement("label");
     mLbl.innerHTML = `
-      <input type="checkbox" class="prop-val-cb" value="__MISSING__">
-      <span style="font-style:italic; color:var(--muted);">(Mangler '${propName}')</span>
+      <span class="item-text" style="font-style:italic; color:var(--muted);">(Mangler '${propName}')</span>
       <span class="val-count">${missingCount} obj</span>
+      <input type="checkbox" class="prop-val-cb" value="__MISSING__">
     `;
     valDropdown.appendChild(mLbl);
   }
@@ -1151,7 +1253,6 @@ function updatePropValueHeaderText() {
   }
 }
 
-// Bygger filterfunksjonen som avgjør om et IFC-objekt skal pakkes ut til 3D-trekanter eller hoppes over
 function buildActiveObjectFilterFn() {
   const propName = $("propFilterSelect").value;
   if (!propName) return () => true;
@@ -1168,7 +1269,6 @@ function buildActiveObjectFilterFn() {
   };
 }
 
-// Re-kategoriser eksisterende beregnede trekanter i sanntid når Kritisk/Advarsel-% endres
 function updateThresholdsLive() {
   if (!analyzedTriangles.length) return;
   const critLimit = parseFloat($("critLimit").value) || 1.5;
@@ -1648,7 +1748,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.4'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.5'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -1685,7 +1785,6 @@ async function runAnalysis() {
 
     const entries = await getActiveModelEntries();
 
-    // Hvis brukeren ikke trykket "1. Skann egenskaper" først, bygger vi egenskapslisten i samme slengen
     if (discoveredPropsMap.size === 0) {
       scannedProductsList = [];
       for (const entry of entries) {
@@ -1727,7 +1826,7 @@ async function runAnalysis() {
     await new Promise(r => setTimeout(r, 20));
 
     analyzedTriangles = evaluateTriangles(filteredRawTriangles, critLimit, warnLimit);
-    if (!analyzedTriangles.length) throw new Error("Fant ingen toppflater med helning < 35% i utvalget.");
+    if (!analyzedTriangles.length) throw new Error("Fant ingen toppflater med helning < 45% i utvalget.");
 
     let cRed = 0, cYel = 0, cGrn = 0;
     let aRed = 0, aYel = 0, aGrn = 0;
@@ -1938,7 +2037,7 @@ $("btnUploadTc").addEventListener("click", async () => {
       }
     }
 
-    console.error("TC UPLOAD DIAGNOSTIKK (v4.4):", diagnostics);
+    console.error("TC UPLOAD DIAGNOSTIKK (v4.5):", diagnostics);
     const lastErr = diagnostics.find(d => d.body?.message || d.body?.errorcode);
     const reason = lastErr ? `${lastErr.body.errorcode || ""} ${lastErr.body.message || ""}`.trim() : `HTTP ${diagnostics[0]?.status || "feil"}`;
     throw new Error(`TC avviste opplasting (${reason}). Se Console (F12) eller bruk '3A. Last ned IFC'.`);

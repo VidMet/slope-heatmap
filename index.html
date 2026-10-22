@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="UTF-8"/>
-  <title>Fallanalyse HeatMap v4.3</title>
+  <title>Fallanalyse HeatMap v4.4</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
@@ -94,9 +94,9 @@
     .viewer-legend { position: absolute; right: 10px; bottom: 10px; background: rgba(255,255,255,0.92); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-family: var(--mono); font-size: 10px; color: var(--ink); pointer-events: none; display: flex; gap: 10px; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
 
-    .empty-overlay { position: absolute; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; max-width: 440px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .empty-overlay { position: absolute; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; max-width: 460px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .empty-overlay h3 { font-size: 14px; color: var(--blue); margin-bottom: 8px; }
-    .empty-overlay p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .empty-overlay p { font-size: 12px; color: var(--muted); line-height: 1.55; }
 
     @media(max-width:760px) {
       .topbar { height: auto; padding: 8px; flex-wrap: wrap; }
@@ -115,7 +115,7 @@
     <img src="norconsult-logo-black.png" alt="Norconsult">
   </div>
   <div class="app-title">
-    <b>Fallanalyse HeatMap v4.3</b>
+    <b>Fallanalyse HeatMap v4.4</b>
     <span>Norconsult Norge</span>
     <em>Developed by Norconsult Norge AS, AI-assisted development. Contact: Vidar.Metveit@norconsult.com</em>
   </div>
@@ -126,15 +126,16 @@
 </header>
 
 <div id="actionBar">
-  <button class="btn btn-secondary" id="btnSync">🔄 Oppdater modeller</button>
-  <button class="btn btn-primary" id="btnAnalyze">▶ 1. Kjør Fallanalyse</button>
+  <button class="btn btn-secondary" id="btnSync" title="Oppdater listen over synlige modeller i 3D">🔄 Modeller</button>
+  <button class="btn btn-primary" id="btnScanProps">🔍 1. Skann egenskaper</button>
+  <button class="btn btn-primary" id="btnAnalyze">▶ 2. Beregn utvalg</button>
   <div style="flex-grow: 1;"></div>
   <label class="btn btn-secondary" style="cursor:pointer; margin:0;" title="Velg lokale IFC-filer hvis sky-nedlasting ikke ønskes">
     📂 Lokale IFC (<span id="localCountBadge">0</span>)
     <input type="file" id="localIfcInput" accept=".ifc" multiple style="display:none"/>
   </label>
-  <button class="btn btn-success" id="btnDownloadIfc" disabled>💾 2A. Last ned IFC</button>
-  <button class="btn btn-primary" id="btnUploadTc" disabled>☁️ 2B. Lagre til TC</button>
+  <button class="btn btn-success" id="btnDownloadIfc" disabled>💾 3A. Last ned IFC</button>
+  <button class="btn btn-primary" id="btnUploadTc" disabled>☁️ 3B. Lagre til TC</button>
 </div>
 
 <div id="filterBar">
@@ -151,12 +152,12 @@
   </div>
 </div>
 
-<!-- NY RAD FOR EGENSKAPS- OG VERDIFILTRERING (FLERVALG) -->
+<!-- FORHÅNDSFILTRERING PÅ EGENSKAP OG VERDIER FØR TUNGE GEOMETRIBEREGNINGER -->
 <div id="propFilterBar">
   <div class="filter-group" style="flex: 1.5; min-width: 200px;">
-    <label for="propFilterSelect" style="color:var(--blue); font-weight:700;">🎯 Filtrer på egenskap:</label>
+    <label for="propFilterSelect" style="color:var(--blue); font-weight:700;">🎯 Filtrer før beregning:</label>
     <select id="propFilterSelect" disabled>
-      <option value="">Alle flater (Kjør analyse først...)</option>
+      <option value="">Alle objekter (Trykk '1. Skann egenskaper' for å filtrere...)</option>
     </select>
   </div>
   <div class="filter-group" style="flex: 2; min-width: 220px;">
@@ -225,9 +226,11 @@
       <canvas id="heatmapCanvas"></canvas>
 
       <div class="empty-overlay" id="emptyOverlay">
-        <h3>Interaktiv 3D Fallanalyse med Egenskapsfilter</h3>
-        <p>Velg én eller flere vegmodeller i menyen over og trykk <b>«1. Kjør Fallanalyse»</b>.<br><br>
-        Etter innlesing kan du filtrere direkte på <b>egenskap og egenskapsverdier</b> (f.eks. kun <i>Slitelag</i> eller spesifikke prosesskoder) i det blå feltet!</p>
+        <h3>Rask 2-trinns Fallanalyse for store modeller</h3>
+        <p>
+          <b>1. Skann egenskaper:</b> Leser kun inn metadata (hopper over tung 3D-geometri) slik at du kan velge ønsket egenskap og krysse bort f.eks. <i>sideterreng</i> på forhånd.<br><br>
+          <b>2. Beregn utvalg:</b> Pakker kun ut 3D-trekantene til de objektene du har huket av, og tegner dem i 3D-vieweren!
+        </p>
       </div>
 
       <div class="viewer-hud" id="viewerHud">
@@ -247,9 +250,10 @@
 <script>
 let API = null;
 let visibleModels = [];
-let allAnalyzedTriangles = []; // Alle toppflate-trekanter fra innleste modeller
-let analyzedTriangles = [];    // Filtrerte trekanter (etter egenskapsvalg)
-let discoveredPropsMap = new Map(); // propName -> Map(propVal -> count)
+let cachedIfcModels = new Map(); // cacheKey -> { fileName, text, metadata }
+let scannedProductsList = [];    // Alle fysiske objekter og deres egenskaper fra siste skann
+let discoveredPropsMap = new Map(); // propName -> Map(propVal -> objectCount)
+let analyzedTriangles = [];
 let generatedIfcText = null;
 let userEditedFileName = false;
 let lastCloudAuth = {
@@ -311,7 +315,6 @@ function findUrlInObject(value) {
 // DROPDOWNS (BÅDE MODELL-UTVALG OG EGENSKAPSVERDI-UTVALG)
 // ============================================================================
 document.addEventListener('click', (e) => {
-  // 1. Modell-dropdown
   const mDrop = $('modelSelectDropdown');
   const mHead = $('modelSelectHeader');
   const mCont = $('multiSelectContainer');
@@ -323,7 +326,6 @@ document.addEventListener('click', (e) => {
     }
   }
 
-  // 2. Egenskapsverdi-dropdown
   const pDrop = $('propValueSelectDropdown');
   const pHead = $('propValueSelectHeader');
   const pCont = $('propValueMultiContainer');
@@ -384,19 +386,18 @@ $("localIfcInput").addEventListener("change", (e) => {
   $("localCountBadge").textContent = files.length;
   oppdaterModellFilterTekst();
   if (files.length > 0) {
-    setStatus(`${files.length} lokal(e) IFC-fil(er) klargjort. Trykk '1. Kjør Fallanalyse'.`, 'ok');
+    setStatus(`${files.length} lokal(e) IFC-fil(er) valgt. Trykk '1. Skann egenskaper' for å filtrere før beregning!`, 'ok');
   }
 });
 
 // ============================================================================
-// STEP-TEKSTDEKODER (Håndterer norske ÆØÅ og Unicode i IFC-strenger som \X2\00F8\X0\)
+// STEP-TEKSTDEKODER (Norske ÆØÅ / UTF-16 hex \X2\...\X0\)
 // ============================================================================
 function decodeStepString(raw) {
   if (!raw) return "";
   let s = String(raw).trim();
   if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1);
   s = s.replace(/''/g, "'");
-  // IFC \X2\XXXX\X0\ UTF-16 hex-sekvenser
   s = s.replace(/\\X2\\([0-9A-Fa-f]+)\\X0\\/g, (_, hex) => {
     let out = "";
     for (let i = 0; i < hex.length; i += 4) {
@@ -404,7 +405,6 @@ function decodeStepString(raw) {
     }
     return out;
   });
-  // IFC \X\XX ISO-8859-1 hex
   s = s.replace(/\\X\\([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
   return s.trim();
 }
@@ -524,7 +524,7 @@ async function syncVisibleModels() {
     });
 
     oppdaterModellFilterTekst();
-    setStatus(`Klar. ${visibleModels.length} synlig(e) modell(er) funnet.`, "ok");
+    setStatus(`Klar. ${visibleModels.length} synlig(e) modell(er) funnet. Trykk '1. Skann egenskaper'!`, "ok");
   } catch (err) {
     setStatus("Feil ved modellhenting: " + err.message, "error");
   }
@@ -552,6 +552,11 @@ async function ensureCloudAuth() {
 }
 
 async function fetchSingleModelIfc(modelId) {
+  const cacheKey = `tc:${modelId}`;
+  if (cachedIfcModels.has(cacheKey)) {
+    return cachedIfcModels.get(cacheKey);
+  }
+
   const mObj = visibleModels.find(m => m.id === modelId);
   const fallbackName = mObj?.name || `modell_${modelId.slice(0, 6)}.ifc`;
 
@@ -562,9 +567,15 @@ async function fetchSingleModelIfc(modelId) {
   if (loaded?.blob) {
     if (loaded.blob instanceof Blob) {
       const txt = await loaded.blob.text();
-      if (txt.includes("ISO-10303-21")) return { text: txt, fileName };
+      if (txt.includes("ISO-10303-21")) {
+        const entry = { text: txt, fileName, metadata: null };
+        cachedIfcModels.set(cacheKey, entry);
+        return entry;
+      }
     } else if (typeof loaded.blob === "string" && loaded.blob.includes("ISO-10303-21")) {
-      return { text: loaded.blob, fileName };
+      const entry = { text: loaded.blob, fileName, metadata: null };
+      cachedIfcModels.set(cacheKey, entry);
+      return entry;
     }
   }
 
@@ -609,46 +620,101 @@ async function fetchSingleModelIfc(modelId) {
   if (!downloadUrl) throw new Error(`Fant ikke nedlastingslenke for '${fileName}'. Bruk '📂 Lokale IFC'-knappen!`);
   const resp = await fetch(downloadUrl);
   if (!resp.ok) throw new Error(`Nedlasting av ${fileName} feilet (HTTP ${resp.status})`);
-  return { text: await resp.text(), fileName };
+  const entry = { text: await resp.text(), fileName, metadata: null };
+  cachedIfcModels.set(cacheKey, entry);
+  return entry;
+}
+
+// Henter alle valgte IFC-modeller (fra lokal fil eller sky-cache)
+async function getActiveModelEntries() {
+  const selectedIds = getSelectedModelIds();
+  const localFiles = Array.from($("localIfcInput")?.files || []);
+  const entries = [];
+
+  if (localFiles.length > 0) {
+    for (let i = 0; i < localFiles.length; i++) {
+      const f = localFiles[i];
+      const cacheKey = `local:${f.name}:${f.size}:${f.lastModified}`;
+      if (!cachedIfcModels.has(cacheKey)) {
+        setStatus(`Leser lokal fil ${i + 1}/${localFiles.length}: ${f.name}...`, "warn");
+        await new Promise(r => setTimeout(r, 15));
+        cachedIfcModels.set(cacheKey, { text: await f.text(), fileName: f.name, metadata: null });
+      }
+      entries.push(cachedIfcModels.get(cacheKey));
+    }
+    await ensureCloudAuth();
+  } else {
+    for (let i = 0; i < selectedIds.length; i++) {
+      const mid = selectedIds[i];
+      const mName = visibleModels.find(m => m.id === mid)?.name || mid;
+      setStatus(`Henter modell ${i + 1}/${selectedIds.length}: ${mName}...`, "warn");
+      const entry = await fetchSingleModelIfc(mid);
+      entries.push(entry);
+    }
+  }
+  return entries;
 }
 
 // ============================================================================
-// IFC STEP PARSER (GEOMETRI + OBJEKTEGENSKAPER / PROPERTYSETS)
+// STEG 1: LYNRASK METADATA-SKANNER (Ignorerer alle tunge 3D-koordinatlister!)
 // ============================================================================
-function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
-  const entities = new Map();
-  const lines = ifcText.split(/\r?\n/);
+const HEAVY_GEOM_PREFIXES = [
+  "IFCCARTESIANPOINT",
+  "IFCTRIANGULATEDFACESET",
+  "IFCPOLYGONALFACESET",
+  "IFCINDEXEDPOLYGONALFACE",
+  "IFCPOLYLOOP",
+  "IFCDIRECTION",
+  "IFCAXIS2PLACEMENT",
+  "IFCLOCALPLACEMENT",
+  "IFCCOLOURRGB",
+  "IFCSURFACESTYLE",
+  "IFCSTYLEDITEM"
+];
+
+function scanIfcMetadataFast(entry) {
+  if (entry.metadata) return entry.metadata;
+
+  const metaEntities = new Map();
+  const lines = entry.text.split(/\r?\n/);
+  let unitScale = 1.0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (line.charCodeAt(0) !== 35) continue;
     const eqIdx = line.indexOf("=");
     if (eqIdx === -1) continue;
-    const id = parseInt(line.slice(1, eqIdx), 10);
     const rest = line.slice(eqIdx + 1).trim();
     const parenIdx = rest.indexOf("(");
     if (parenIdx === -1) continue;
     const type = rest.slice(0, parenIdx).trim().toUpperCase();
-    const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
-    entities.set(id, { type, args });
-  }
 
-  let unitScale = 1.0;
-  for (const [, ent] of entities) {
-    if (ent.type === "IFCSIUNIT" && ent.args.includes(".LENGTHUNIT.") && ent.args.includes(".MILLI.")) {
-      unitScale = 0.001;
-      break;
+    // Sjekk enhet (mm vs m)
+    if (type === "IFCSIUNIT") {
+      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      if (args.includes(".LENGTHUNIT.") && args.includes(".MILLI.")) unitScale = 0.001;
+      continue;
     }
+
+    // HOPP OVER alle tunge 3D-punkt og trekant-entiteter (utgjør 95% av filen!)
+    let isHeavy = false;
+    for (let k = 0; k < HEAVY_GEOM_PREFIXES.length; k++) {
+      if (type.startsWith(HEAVY_GEOM_PREFIXES[k])) { isHeavy = true; break; }
+    }
+    if (isHeavy) continue;
+
+    const id = parseInt(line.slice(1, eqIdx), 10);
+    const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+    metaEntities.set(id, { type, args });
   }
 
-  const parseNums = str => (str.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g) || []).map(Number);
   const parseRefs = str => (str.match(/#\d+/g) || []).map(r => parseInt(r.slice(1), 10));
 
-  // 1. Les alle IFCPROPERTYSINGLEVALUE og IFCELEMENTQUANTITY-verdier
-  const singleProps = new Map(); // id -> { name, val }
-  const propSets = new Map();    // psetId -> [propIds]
+  // 1. Les alle IFCPROPERTYSINGLEVALUE og IFCELEMENTQUANTITY
+  const singleProps = new Map();
+  const propSets = new Map();
 
-  for (const [id, ent] of entities) {
+  for (const [id, ent] of metaEntities) {
     if (ent.type === "IFCPROPERTYSINGLEVALUE") {
       const parts = splitStepTopLevelArgs(ent.args);
       const pName = decodeStepString(parts[0]);
@@ -661,20 +727,18 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
       if (qName && qVal !== "") singleProps.set(id, { name: qName, val: qVal });
     } else if (ent.type === "IFCPROPERTYSET" || ent.type === "IFCELEMENTQUANTITY") {
       const parts = splitStepTopLevelArgs(ent.args);
-      if (parts.length >= 5) {
-        propSets.set(id, parseRefs(parts[4]));
-      }
+      if (parts.length >= 5) propSets.set(id, parseRefs(parts[4]));
     }
   }
 
   // 2. Koble PropertySets til fysiske objekter via IFCRELDEFINESBYPROPERTIES
-  const objectPropsMap = new Map(); // productId -> { propName: propVal }
+  const objectPropsMap = new Map();
   const ensureObjProps = (pid) => {
-    if (!objectPropsMap.has(pid)) objectPropsMap.set(pid, { Modell: modelLabel });
+    if (!objectPropsMap.has(pid)) objectPropsMap.set(pid, { Modell: entry.fileName });
     return objectPropsMap.get(pid);
   };
 
-  for (const [, ent] of entities) {
+  for (const [, ent] of metaEntities) {
     if (ent.type === "IFCRELDEFINESBYPROPERTIES") {
       const parts = splitStepTopLevelArgs(ent.args);
       if (parts.length >= 6) {
@@ -687,9 +751,7 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
             const bag = ensureObjProps(objId);
             for (const propId of propIds) {
               const kv = singleProps.get(propId);
-              if (kv && kv.name && kv.val !== "") {
-                bag[kv.name] = kv.val;
-              }
+              if (kv && kv.name && kv.val !== "") bag[kv.name] = kv.val;
             }
           }
         }
@@ -697,19 +759,17 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
     }
   }
 
-  // 3. Finn alle produkter som har en 3D-representasjon (IFCPRODUCTDEFINITIONSHAPE)
-  // og koble geometrinoder (FaceSets / PolyLoops) nedover til sitt eier-produkt!
-  const geomToProductMap = new Map(); // geomEntityId -> productId
-  const SKIP_TYPES = new Set([
-    "IFCPROJECT", "IFCSITE", "IFCBUILDING", "IFCBUILDINGSTOREY",
-    "IFCAXIS2PLACEMENT3D", "IFCLOCALPLACEMENT", "IFCDIRECTION", "IFCCARTESIANPOINT"
-  ]);
+  // 3. Finn alle produkter med 3D-representasjon (IFCPRODUCTDEFINITIONSHAPE)
+  // og koble geometritreet nedover til eier-produktet
+  const geomToProductMap = new Map();
+  const products = new Map(); // productId -> props
+  const SKIP_TYPES = new Set(["IFCPROJECT", "IFCSITE", "IFCBUILDING", "IFCBUILDINGSTOREY"]);
 
   function registerGeomTree(rootRefs, productId, depth = 0) {
     if (depth > 8) return;
     for (const ref of rootRefs) {
       if (!geomToProductMap.has(ref)) geomToProductMap.set(ref, productId);
-      const childEnt = entities.get(ref);
+      const childEnt = metaEntities.get(ref);
       if (!childEnt) continue;
       if (
         childEnt.type === "IFCPRODUCTDEFINITIONSHAPE" ||
@@ -730,14 +790,13 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
     }
   }
 
-  for (const [id, ent] of entities) {
+  for (const [id, ent] of metaEntities) {
     if (SKIP_TYPES.has(ent.type) || ent.type.startsWith("IFCREL") || ent.type.startsWith("IFCPROPERTY")) continue;
     if (!ent.args.includes("#")) continue;
     const parts = splitStepTopLevelArgs(ent.args);
-    // Standard IFCProduct har GlobalId(0), OwnerHistory(1), Name(2), Description(3), ObjectType(4), Placement(5), Representation(6)
     if (parts.length >= 7 && parts[6].startsWith("#")) {
       const repRef = parseInt(parts[6].slice(1), 10);
-      const repEnt = entities.get(repRef);
+      const repEnt = metaEntities.get(repRef);
       if (repEnt && repEnt.type === "IFCPRODUCTDEFINITIONSHAPE") {
         const bag = ensureObjProps(id);
         bag["IfcClass"] = ent.type;
@@ -748,81 +807,169 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
         if (objTypeVal && objTypeVal !== "$") bag["ObjectType"] = objTypeVal;
         if (descVal && descVal !== "$") bag["Description"] = descVal;
 
+        products.set(id, bag);
         registerGeomTree([repRef], id, 0);
       }
     }
   }
 
-  // 4. Pakk ut punkter og trekanter og gi hver trekant egenskapene til sitt eier-produkt
-  const cartesianPoints = new Map();
+  entry.metadata = { unitScale, products, geomToProductMap };
+  return entry.metadata;
+}
+
+// ============================================================================
+// STEG 2: SELEKTIV 3D-GEOMETRIDEKODER (Pakker KUN ut valgte objekter!)
+// ============================================================================
+function extractFilteredTrianglesFromIfc(entry, filterFn) {
+  const meta = scanIfcMetadataFast(entry);
+  const { unitScale, products, geomToProductMap } = meta;
+
+  // Finn ut nøyaktig hvilke produkter i denne filen som matcher brukerens filter!
+  const allowedProductIds = new Set();
+  for (const [pid, props] of products) {
+    if (filterFn(props)) allowedProductIds.add(pid);
+  }
+
+  // Hvis det er satt et filter og ingen produkter i denne modellen matcher, hopper vi over hele 3D-parsingen!
+  const defaultProps = { Modell: entry.fileName };
+  const allowUnmapped = filterFn(defaultProps);
+  if (products.size > 0 && allowedProductIds.size === 0 && !allowUnmapped) {
+    return [];
+  }
+
+  const parseNums = str => (str.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g) || []).map(Number);
+  const parseRefs = str => (str.match(/#\d+/g) || []).map(r => parseInt(r.slice(1), 10));
+
+  const lines = entry.text.split(/\r?\n/);
+  const faceSets = [];
+  const polyFaceSets = [];
+  const indexedPolyFaces = new Map();
+  const polyLoops = [];
+  const neededPointListIds = new Set();
+  const neededCartPointIds = new Set();
+
+  // Pass 1: Finn kun FaceSets / PolyLoops som tilhører de godkjente objektene!
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.charCodeAt(0) !== 35) continue;
+    const eqIdx = line.indexOf("=");
+    if (eqIdx === -1) continue;
+    const rest = line.slice(eqIdx + 1).trim();
+    const parenIdx = rest.indexOf("(");
+    if (parenIdx === -1) continue;
+    const type = rest.slice(0, parenIdx).trim().toUpperCase();
+
+    if (type === "IFCTRIANGULATEDFACESET") {
+      const id = parseInt(line.slice(1, eqIdx), 10);
+      const prodId = geomToProductMap.get(id);
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+
+      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      const refs = parseRefs(args);
+      if (refs.length > 0) {
+        neededPointListIds.add(refs[0]);
+        faceSets.push({ id, ptListId: refs[0], args, props: (prodId && products.get(prodId)) || defaultProps });
+      }
+    } else if (type === "IFCPOLYGONALFACESET") {
+      const id = parseInt(line.slice(1, eqIdx), 10);
+      const prodId = geomToProductMap.get(id);
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+
+      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      const refs = parseRefs(args);
+      if (refs.length > 0) {
+        neededPointListIds.add(refs[0]);
+        polyFaceSets.push({ id, ptListId: refs[0], faceRefs: refs.slice(1), props: (prodId && products.get(prodId)) || defaultProps });
+      }
+    } else if (type === "IFCINDEXEDPOLYGONALFACE") {
+      const id = parseInt(line.slice(1, eqIdx), 10);
+      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      indexedPolyFaces.set(id, args);
+    } else if (type === "IFCPOLYLOOP") {
+      const id = parseInt(line.slice(1, eqIdx), 10);
+      const prodId = geomToProductMap.get(id);
+      if (prodId ? !allowedProductIds.has(prodId) : !allowUnmapped) continue;
+
+      const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+      const refs = parseRefs(args);
+      if (refs.length >= 3) {
+        for (const r of refs) neededCartPointIds.add(r);
+        polyLoops.push({ refs, props: (prodId && products.get(prodId)) || defaultProps });
+      }
+    }
+  }
+
+  // Pass 2: Dekod KUN de punktlistene (IFCCARTESIANPOINTLIST3D / IFCCARTESIANPOINT) som trengs av utvalget!
   const pointLists = new Map();
+  const cartesianPoints = new Map();
 
-  for (const [id, ent] of entities) {
-    if (ent.type === "IFCCARTESIANPOINT") {
-      const nums = parseNums(ent.args);
-      if (nums.length >= 3) cartesianPoints.set(id, [nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
-    } else if (ent.type === "IFCCARTESIANPOINTLIST3D") {
-      const coordLists = [];
-      const tuples = ent.args.match(/\(\s*[-+]?\d[^)]+\)/g) || [];
-      for (const tup of tuples) {
-        const nums = parseNums(tup);
-        if (nums.length >= 3) coordLists.push([nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
+  if (neededPointListIds.size > 0 || (faceSets.length === 0 && polyFaceSets.length === 0 && neededCartPointIds.size > 0)) {
+    const needCart = faceSets.length === 0 && polyFaceSets.length === 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.charCodeAt(0) !== 35) continue;
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) continue;
+      const id = parseInt(line.slice(1, eqIdx), 10);
+
+      if (neededPointListIds.has(id)) {
+        const rest = line.slice(eqIdx + 1).trim();
+        const parenIdx = rest.indexOf("(");
+        const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+        const coordLists = [];
+        const tuples = args.match(/\(\s*[-+]?\d[^)]+\)/g) || [];
+        for (const tup of tuples) {
+          const nums = parseNums(tup);
+          if (nums.length >= 3) coordLists.push([nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
+        }
+        pointLists.set(id, coordLists);
+      } else if (needCart && neededCartPointIds.has(id)) {
+        const rest = line.slice(eqIdx + 1).trim();
+        const parenIdx = rest.indexOf("(");
+        const args = rest.slice(parenIdx + 1, rest.lastIndexOf(")"));
+        const nums = parseNums(args);
+        if (nums.length >= 3) cartesianPoints.set(id, [nums[0] * unitScale, nums[1] * unitScale, nums[2] * unitScale]);
       }
-      pointLists.set(id, coordLists);
     }
   }
 
+  // Pass 3: Bygg trekanter kun for det filtrerte utvalget
   const rawTriangles = [];
-  const defaultProps = { Modell: modelLabel };
 
-  for (const [id, ent] of entities) {
-    if (ent.type === "IFCTRIANGULATEDFACESET") {
-      const refs = parseRefs(ent.args);
-      const pts = pointLists.get(refs[0]);
-      if (!pts || !pts.length) continue;
-      const prodId = geomToProductMap.get(id);
-      const props = (prodId && objectPropsMap.get(prodId)) || defaultProps;
+  for (const fs of faceSets) {
+    const pts = pointLists.get(fs.ptListId);
+    if (!pts || !pts.length) continue;
+    const afterFirstParen = fs.args.indexOf("((", fs.args.indexOf("#"));
+    if (afterFirstParen === -1) continue;
+    const idxBlock = fs.args.slice(afterFirstParen);
+    const tuples = idxBlock.match(/\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g) || [];
+    for (const tup of tuples) {
+      const idx = parseNums(tup);
+      const p1 = pts[idx[0] - 1], p2 = pts[idx[1] - 1], p3 = pts[idx[2] - 1];
+      if (p1 && p2 && p3) rawTriangles.push({ p1, p2, p3, props: fs.props });
+    }
+  }
 
-      const afterFirstParen = ent.args.indexOf("((", ent.args.indexOf("#"));
-      if (afterFirstParen === -1) continue;
-      const idxBlock = ent.args.slice(afterFirstParen);
-      const tuples = idxBlock.match(/\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g) || [];
-      for (const tup of tuples) {
-        const idx = parseNums(tup);
-        const p1 = pts[idx[0] - 1], p2 = pts[idx[1] - 1], p3 = pts[idx[2] - 1];
-        if (p1 && p2 && p3) rawTriangles.push({ p1, p2, p3, props });
-      }
-    } else if (ent.type === "IFCPOLYGONALFACESET") {
-      const refs = parseRefs(ent.args);
-      const pts = pointLists.get(refs[0]);
-      if (!pts || !pts.length) continue;
-      const prodId = geomToProductMap.get(id);
-      const props = (prodId && objectPropsMap.get(prodId)) || defaultProps;
-
-      for (let r = 1; r < refs.length; r++) {
-        const faceEnt = entities.get(refs[r]);
-        if (faceEnt && faceEnt.type === "IFCINDEXEDPOLYGONALFACE") {
-          const idx = parseNums(faceEnt.args);
-          for (let k = 1; k < idx.length - 1; k++) {
-            const p1 = pts[idx[0] - 1], p2 = pts[idx[k] - 1], p3 = pts[idx[k + 1] - 1];
-            if (p1 && p2 && p3) rawTriangles.push({ p1, p2, p3, props });
-          }
+  for (const pfs of polyFaceSets) {
+    const pts = pointLists.get(pfs.ptListId);
+    if (!pts || !pts.length) continue;
+    for (const fRef of pfs.faceRefs) {
+      const fArgs = indexedPolyFaces.get(fRef);
+      if (fArgs) {
+        const idx = parseNums(fArgs);
+        for (let k = 1; k < idx.length - 1; k++) {
+          const p1 = pts[idx[0] - 1], p2 = pts[idx[k] - 1], p3 = pts[idx[k + 1] - 1];
+          if (p1 && p2 && p3) rawTriangles.push({ p1, p2, p3, props: pfs.props });
         }
       }
     }
   }
 
-  if (rawTriangles.length === 0) {
-    for (const [id, ent] of entities) {
-      if (ent.type === "IFCPOLYLOOP") {
-        const refs = parseRefs(ent.args);
-        if (refs.length < 3) continue;
-        const prodId = geomToProductMap.get(id);
-        const props = (prodId && objectPropsMap.get(prodId)) || defaultProps;
-        const poly = refs.map(r => cartesianPoints.get(r)).filter(Boolean);
-        for (let i = 1; i < poly.length - 1; i++) {
-          rawTriangles.push({ p1: poly[0], p2: poly[i], p3: poly[i + 1], props });
-        }
+  if (rawTriangles.length === 0 && polyLoops.length > 0) {
+    for (const pl of polyLoops) {
+      const poly = pl.refs.map(r => cartesianPoints.get(r)).filter(Boolean);
+      for (let i = 1; i < poly.length - 1; i++) {
+        rawTriangles.push({ p1: poly[0], p2: poly[i], p3: poly[i + 1], props: pl.props });
       }
     }
   }
@@ -833,8 +980,7 @@ function parseIfcTrianglesWithProperties(ifcText, modelLabel = "") {
 function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
   const results = [];
   for (let i = 0; i < rawTriangles.length; i++) {
-    const item = rawTriangles[i];
-    const { p1, p2, p3, props } = item;
+    const { p1, p2, p3, props } = rawTriangles[i];
     const ux = p2[0] - p1[0], uy = p2[1] - p1[1], uz = p2[2] - p1[2];
     const vx = p3[0] - p1[0], vy = p3[1] - p1[1], vz = p3[2] - p1[2];
 
@@ -869,31 +1015,60 @@ function evaluateTriangles(rawTriangles, critLimit, warnLimit) {
 }
 
 // ============================================================================
-// EGENSKAPSFILTER OG FLERVALG AV EGENSKAPSVERDIER
+// EGENSKAPSFILTER UI (FØR OG ETTER BEREGNING)
 // ============================================================================
-function buildPropertyIndex(triangles) {
-  discoveredPropsMap.clear();
-  for (const t of triangles) {
-    const bag = t.props || {};
-    for (const [k, v] of Object.entries(bag)) {
-      if (!k || v === undefined || v === null || String(v).trim() === "") continue;
-      const valStr = String(v).trim();
-      if (!discoveredPropsMap.has(k)) discoveredPropsMap.set(k, new Map());
-      const vMap = discoveredPropsMap.get(k);
-      vMap.set(valStr, (vMap.get(valStr) || 0) + 1);
-    }
+async function scanModelPropertiesOnly() {
+  const selectedIds = getSelectedModelIds();
+  const localFiles = Array.from($("localIfcInput")?.files || []);
+
+  if (selectedIds.length === 0 && localFiles.length === 0) {
+    return setStatus("Velg minst én modell i listen eller via '📂 Lokale IFC'.", "warn");
   }
 
-  const propSelect = $("propFilterSelect");
-  const sortedProps = Array.from(discoveredPropsMap.keys()).sort((a, b) => a.localeCompare(b, "nb", { sensitivity: "base" }));
+  $("btnScanProps").disabled = true;
+  $("btnAnalyze").disabled = true;
 
-  propSelect.innerHTML = `<option value="">-- Alle flater (Ingen filtrering) --</option>` +
-    sortedProps.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p} (${discoveredPropsMap.get(p).size} verdier)</option>`).join("");
-  propSelect.disabled = sortedProps.length === 0;
+  try {
+    const entries = await getActiveModelEntries();
+    scannedProductsList = [];
+    discoveredPropsMap.clear();
 
-  $("propValueMultiContainer").classList.add("disabled");
-  $("propValueSelectHeader").innerText = "Alle verdier inkludert";
-  $("propValueSelectDropdown").innerHTML = "";
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      setStatus(`Skanner egenskaper i ${entry.fileName} (${i + 1}/${entries.length})...`, "warn");
+      await new Promise(r => setTimeout(r, 15));
+      const meta = scanIfcMetadataFast(entry);
+      for (const [, props] of meta.products) {
+        scannedProductsList.push(props);
+        for (const [k, v] of Object.entries(props)) {
+          if (!k || v === undefined || v === null || String(v).trim() === "") continue;
+          const valStr = String(v).trim();
+          if (!discoveredPropsMap.has(k)) discoveredPropsMap.set(k, new Map());
+          const vMap = discoveredPropsMap.get(k);
+          vMap.set(valStr, (vMap.get(valStr) || 0) + 1);
+        }
+      }
+    }
+
+    const propSelect = $("propFilterSelect");
+    const sortedProps = Array.from(discoveredPropsMap.keys()).sort((a, b) => a.localeCompare(b, "nb", { sensitivity: "base" }));
+
+    propSelect.innerHTML = `<option value="">-- Alle objekter (${scannedProductsList.length} stk) --</option>` +
+      sortedProps.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p} (${discoveredPropsMap.get(p).size} verdier)</option>`).join("");
+    propSelect.disabled = sortedProps.length === 0;
+
+    $("propValueMultiContainer").classList.add("disabled");
+    $("propValueSelectHeader").innerText = "Alle verdier inkludert";
+    $("propValueSelectDropdown").innerHTML = "";
+
+    setStatus(`Skannet ${scannedProductsList.length} objekter (${sortedProps.length} egenskaper). Velg filter i det blå feltet og trykk '2. Beregn utvalg'!`, "ok");
+  } catch (err) {
+    console.error("Feil ved egenskapsskanning:", err);
+    setStatus(err.message || String(err), "error");
+  } finally {
+    $("btnScanProps").disabled = false;
+    $("btnAnalyze").disabled = false;
+  }
 }
 
 $("propFilterSelect").addEventListener("change", () => {
@@ -905,7 +1080,6 @@ $("propFilterSelect").addEventListener("change", () => {
   if (!propName || !discoveredPropsMap.has(propName)) {
     valContainer.classList.add("disabled");
     $("propValueSelectHeader").innerText = "Alle verdier inkludert";
-    applyPropertyFilterAndRefresh(true);
     return;
   }
 
@@ -913,10 +1087,9 @@ $("propFilterSelect").addEventListener("change", () => {
   const valMap = discoveredPropsMap.get(propName);
   const sortedVals = Array.from(valMap.keys()).sort((a, b) => a.localeCompare(b, "nb", { numeric: true, sensitivity: "base" }));
 
-  // Tell om noen flater mangler denne egenskapen
   let missingCount = 0;
-  for (const t of allAnalyzedTriangles) {
-    const v = t.props?.[propName];
+  for (const bag of scannedProductsList) {
+    const v = bag?.[propName];
     if (v === undefined || v === null || String(v).trim() === "") missingCount++;
   }
 
@@ -930,7 +1103,7 @@ $("propFilterSelect").addEventListener("change", () => {
     lbl.innerHTML = `
       <input type="checkbox" class="prop-val-cb" value="${val.replace(/"/g, '&quot;')}" checked>
       <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${val}">${val}</span>
-      <span class="val-count">${count}</span>
+      <span class="val-count">${count} obj</span>
     `;
     valDropdown.appendChild(lbl);
   }
@@ -940,7 +1113,7 @@ $("propFilterSelect").addEventListener("change", () => {
     mLbl.innerHTML = `
       <input type="checkbox" class="prop-val-cb" value="__MISSING__">
       <span style="font-style:italic; color:var(--muted);">(Mangler '${propName}')</span>
-      <span class="val-count">${missingCount}</span>
+      <span class="val-count">${missingCount} obj</span>
     `;
     valDropdown.appendChild(mLbl);
   }
@@ -951,19 +1124,16 @@ $("propFilterSelect").addEventListener("change", () => {
   selAll.addEventListener("change", (e) => {
     cbs.forEach(cb => cb.checked = e.target.checked);
     updatePropValueHeaderText();
-    applyPropertyFilterAndRefresh(false);
   });
 
   cbs.forEach(cb => {
     cb.addEventListener("change", () => {
       selAll.checked = Array.from(cbs).every(c => c.checked);
       updatePropValueHeaderText();
-      applyPropertyFilterAndRefresh(false);
     });
   });
 
   updatePropValueHeaderText();
-  applyPropertyFilterAndRefresh(true);
 });
 
 function updatePropValueHeaderText() {
@@ -981,9 +1151,26 @@ function updatePropValueHeaderText() {
   }
 }
 
-// Oppdaterer statistikk, 3D-viewer og 3D-IFC i sanntid ut fra valgte egenskapsverdier
-function applyPropertyFilterAndRefresh(recenterCamera = false) {
+// Bygger filterfunksjonen som avgjør om et IFC-objekt skal pakkes ut til 3D-trekanter eller hoppes over
+function buildActiveObjectFilterFn() {
   const propName = $("propFilterSelect").value;
+  if (!propName) return () => true;
+
+  const selectedVals = new Set(
+    Array.from(document.querySelectorAll(".prop-val-cb:checked")).map(cb => cb.value)
+  );
+  return (props) => {
+    const rawVal = props?.[propName];
+    const strVal = (rawVal === undefined || rawVal === null || String(rawVal).trim() === "")
+      ? "__MISSING__"
+      : String(rawVal).trim();
+    return selectedVals.has(strVal);
+  };
+}
+
+// Re-kategoriser eksisterende beregnede trekanter i sanntid når Kritisk/Advarsel-% endres
+function updateThresholdsLive() {
+  if (!analyzedTriangles.length) return;
   const critLimit = parseFloat($("critLimit").value) || 1.5;
   const warnLimit = parseFloat($("warnLimit").value) || 2.0;
   const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
@@ -992,34 +1179,12 @@ function applyPropertyFilterAndRefresh(recenterCamera = false) {
   $("legWarn").textContent = `${critLimit.toFixed(1)} - ${warnLimit.toFixed(1)}%`;
   $("legOk").textContent = `> ${warnLimit.toFixed(1)}%`;
 
-  // Rekategoriser hvis brukeren endret Kritisk/Advarsel-%
-  for (const t of allAnalyzedTriangles) {
-    if (t.slopePct < critLimit) t.category = "red";
-    else if (t.slopePct < warnLimit) t.category = "yellow";
-    else t.category = "green";
-  }
-
-  if (!propName) {
-    analyzedTriangles = allAnalyzedTriangles.slice();
-  } else {
-    const selectedVals = new Set(
-      Array.from(document.querySelectorAll(".prop-val-cb:checked")).map(cb => cb.value)
-    );
-    analyzedTriangles = allAnalyzedTriangles.filter(t => {
-      const rawVal = t.props?.[propName];
-      const strVal = (rawVal === undefined || rawVal === null || String(rawVal).trim() === "")
-        ? "__MISSING__"
-        : String(rawVal).trim();
-      return selectedVals.has(strVal);
-    });
-  }
-
   let cRed = 0, cYel = 0, cGrn = 0;
   let aRed = 0, aYel = 0, aGrn = 0;
   for (const t of analyzedTriangles) {
-    if (t.category === "red") { cRed++; aRed += t.area; }
-    else if (t.category === "yellow") { cYel++; aYel += t.area; }
-    else { cGrn++; aGrn += t.area; }
+    if (t.slopePct < critLimit) { t.category = "red"; cRed++; aRed += t.area; }
+    else if (t.slopePct < warnLimit) { t.category = "yellow"; cYel++; aYel += t.area; }
+    else { t.category = "green"; cGrn++; aGrn += t.area; }
   }
 
   $("valRed").textContent = cRed.toLocaleString("nb-NO");
@@ -1028,32 +1193,14 @@ function applyPropertyFilterAndRefresh(recenterCamera = false) {
   $("areaYellow").textContent = `${aYel.toFixed(1)} m²`;
   $("valGreen").textContent = cGrn.toLocaleString("nb-NO");
   $("areaGreen").textContent = `${aGrn.toFixed(1)} m²`;
-  $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} av ${allAnalyzedTriangles.length.toLocaleString("nb-NO")} flater`;
 
-  viewerState.selectedTri = null;
-  if (analyzedTriangles.length > 0) {
-    if (recenterCamera || !viewerState.bounds) {
-      resetCamera();
-    } else {
-      requestAnimationFrame(renderViewport);
-    }
-    const outFile = getCleanOutputFileName();
-    generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outFile);
-    $("btnDownloadIfc").disabled = false;
-    if (lastCloudAuth.token) $("btnUploadTc").disabled = false;
-    setStatus(`Viser ${analyzedTriangles.length.toLocaleString("nb-NO")} flater (${cRed} kritiske = ${aRed.toFixed(1)} m²).`, "ok");
-  } else {
-    requestAnimationFrame(renderViewport);
-    generatedIfcText = null;
-    $("btnDownloadIfc").disabled = true;
-    $("btnUploadTc").disabled = true;
-    setStatus("Ingen flater matcher valgte egenskapsverdier.", "warn");
-  }
+  const outFile = getCleanOutputFileName();
+  generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outFile);
+  requestAnimationFrame(renderViewport);
 }
 
-// Re-kalkuler i sanntid hvis brukeren endrer Kritisk % eller Advarsel %
-$("critLimit").addEventListener("change", () => { if (allAnalyzedTriangles.length) applyPropertyFilterAndRefresh(false); });
-$("warnLimit").addEventListener("change", () => { if (allAnalyzedTriangles.length) applyPropertyFilterAndRefresh(false); });
+$("critLimit").addEventListener("change", updateThresholdsLive);
+$("warnLimit").addEventListener("change", updateThresholdsLive);
 
 // ============================================================================
 // INTERAKTIV 3D & 2D MOTOR
@@ -1501,7 +1648,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
     "ISO-10303-21;",
     "HEADER;",
     "FILE_DESCRIPTION(('ViewDefinition [CoordinationView]'),'2;1');",
-    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.3'),('Norconsult'),'','','');`,
+    `FILE_NAME('${labelName}','${now}',('Fallanalyse HeatMap v4.4'),('Norconsult'),'','','');`,
     "FILE_SCHEMA(('IFC4'));",
     "ENDSEC;",
     "DATA;",
@@ -1512,7 +1659,7 @@ function buildHeatmapIfcFile(triangles, zOffsetMeters, labelName) {
 }
 
 // ============================================================================
-// HOVEDFLYT: KJØR ANALYSE, EKSPORT OG TC-OPPLASTING
+// HOVEDFLYT STEG 2: BEREGN KUN FILTRERT UTVALG
 // ============================================================================
 async function runAnalysis() {
   const selectedIds = getSelectedModelIds();
@@ -1522,6 +1669,7 @@ async function runAnalysis() {
     return setStatus("Velg minst én modell i listen eller via '📂 Lokale IFC'.", "warn");
   }
 
+  $("btnScanProps").disabled = true;
   $("btnAnalyze").disabled = true;
   $("btnDownloadIfc").disabled = true;
   $("btnUploadTc").disabled = true;
@@ -1529,50 +1677,90 @@ async function runAnalysis() {
   try {
     const critLimit = parseFloat($("critLimit").value) || 1.5;
     const warnLimit = parseFloat($("warnLimit").value) || 2.0;
+    const zOffsetMeters = (parseFloat($("zOffsetMm").value) || 5) / 1000;
 
-    let allRawTriangles = [];
-    const processedNames = [];
+    $("legCrit").textContent = `< ${critLimit.toFixed(1)}%`;
+    $("legWarn").textContent = `${critLimit.toFixed(1)} - ${warnLimit.toFixed(1)}%`;
+    $("legOk").textContent = `> ${warnLimit.toFixed(1)}%`;
 
-    if (localFiles.length > 0) {
-      for (let i = 0; i < localFiles.length; i++) {
-        const f = localFiles[i];
-        setStatus(`Leser lokal IFC ${i + 1}/${localFiles.length}: ${f.name}...`, "warn");
-        await new Promise(r => setTimeout(r, 20));
-        const txt = await f.text();
-        allRawTriangles = allRawTriangles.concat(parseIfcTrianglesWithProperties(txt, f.name));
-        processedNames.push(f.name);
+    const entries = await getActiveModelEntries();
+
+    // Hvis brukeren ikke trykket "1. Skann egenskaper" først, bygger vi egenskapslisten i samme slengen
+    if (discoveredPropsMap.size === 0) {
+      scannedProductsList = [];
+      for (const entry of entries) {
+        const meta = scanIfcMetadataFast(entry);
+        for (const [, props] of meta.products) {
+          scannedProductsList.push(props);
+          for (const [k, v] of Object.entries(props)) {
+            if (!k || v === undefined || v === null || String(v).trim() === "") continue;
+            const valStr = String(v).trim();
+            if (!discoveredPropsMap.has(k)) discoveredPropsMap.set(k, new Map());
+            const vMap = discoveredPropsMap.get(k);
+            vMap.set(valStr, (vMap.get(valStr) || 0) + 1);
+          }
+        }
       }
-      await ensureCloudAuth();
-    } else {
-      for (let i = 0; i < selectedIds.length; i++) {
-        const mid = selectedIds[i];
-        const mName = visibleModels.find(m => m.id === mid)?.name || mid;
-        setStatus(`Laster inn modell ${i + 1}/${selectedIds.length}: ${mName}...`, "warn");
-        const { text, fileName } = await fetchSingleModelIfc(mid);
-        allRawTriangles = allRawTriangles.concat(parseIfcTrianglesWithProperties(text, fileName));
-        processedNames.push(fileName);
-      }
+      const propSelect = $("propFilterSelect");
+      const sortedProps = Array.from(discoveredPropsMap.keys()).sort((a, b) => a.localeCompare(b, "nb", { sensitivity: "base" }));
+      propSelect.innerHTML = `<option value="">-- Alle objekter (${scannedProductsList.length} stk) --</option>` +
+        sortedProps.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p} (${discoveredPropsMap.get(p).size} verdier)</option>`).join("");
+      propSelect.disabled = sortedProps.length === 0;
     }
 
-    if (!allRawTriangles.length) throw new Error("Fant ingen 3D-trekanter i de valgte modellene.");
+    const filterFn = buildActiveObjectFilterFn();
+    let filteredRawTriangles = [];
 
-    setStatus(`Beregner resulterende fall og leser egenskaper for ${allRawTriangles.length.toLocaleString("nb-NO")} flater...`, "warn");
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      setStatus(`Pakker ut 3D-flater for valgte objekter i ${entry.fileName} (${i + 1}/${entries.length})...`, "warn");
+      await new Promise(r => setTimeout(r, 20));
+      const tris = extractFilteredTrianglesFromIfc(entry, filterFn);
+      filteredRawTriangles = filteredRawTriangles.concat(tris);
+    }
+
+    if (!filteredRawTriangles.length) {
+      throw new Error("Ingen 3D-flater matchet det valgte egenskapsfilteret.");
+    }
+
+    setStatus(`Beregner resulterende fall for ${filteredRawTriangles.length.toLocaleString("nb-NO")} filtrerte trekanter...`, "warn");
     await new Promise(r => setTimeout(r, 20));
 
-    allAnalyzedTriangles = evaluateTriangles(allRawTriangles, critLimit, warnLimit);
-    if (!allAnalyzedTriangles.length) throw new Error("Fant ingen toppflater med helning < 35%.");
+    analyzedTriangles = evaluateTriangles(filteredRawTriangles, critLimit, warnLimit);
+    if (!analyzedTriangles.length) throw new Error("Fant ingen toppflater med helning < 35% i utvalget.");
+
+    let cRed = 0, cYel = 0, cGrn = 0;
+    let aRed = 0, aYel = 0, aGrn = 0;
+    for (const t of analyzedTriangles) {
+      if (t.category === "red") { cRed++; aRed += t.area; }
+      else if (t.category === "yellow") { cYel++; aYel += t.area; }
+      else { cGrn++; aGrn += t.area; }
+    }
+
+    $("valRed").textContent = cRed.toLocaleString("nb-NO");
+    $("areaRed").textContent = `${aRed.toFixed(1)} m²`;
+    $("valYellow").textContent = cYel.toLocaleString("nb-NO");
+    $("areaYellow").textContent = `${aYel.toFixed(1)} m²`;
+    $("valGreen").textContent = cGrn.toLocaleString("nb-NO");
+    $("areaGreen").textContent = `${aGrn.toFixed(1)} m²`;
+    $("triCountLabel").textContent = `${analyzedTriangles.length.toLocaleString("nb-NO")} flater (${entries.length} mod.)`;
 
     $("emptyOverlay").style.display = "none";
+    viewerState.selectedTri = null;
+    resetCamera();
 
-    // Bygg indeks over alle oppdagede egenskaper og verdier
-    buildPropertyIndex(allAnalyzedTriangles);
+    const outFile = getCleanOutputFileName();
+    generatedIfcText = buildHeatmapIfcFile(analyzedTriangles, zOffsetMeters, outFile);
 
-    // Vis alle flater som startpunkt
-    applyPropertyFilterAndRefresh(true);
+    $("btnDownloadIfc").disabled = false;
+    if (lastCloudAuth.token) $("btnUploadTc").disabled = false;
+
+    setStatus(`Beregning fullført! ${analyzedTriangles.length.toLocaleString("nb-NO")} flater (${cRed} kritiske = ${aRed.toFixed(1)} m²).`, "ok");
   } catch (err) {
     console.error("Analysefeil:", err);
     setStatus(err.message || String(err), "error");
   } finally {
+    $("btnScanProps").disabled = false;
     $("btnAnalyze").disabled = false;
   }
 }
@@ -1735,7 +1923,7 @@ $("btnUploadTc").addEventListener("click", async () => {
     const folderCandidates = await getVerifiedFolderCandidates(headersAuth);
 
     if (!folderCandidates.length) {
-      throw new Error("Fant ingen gyldig prosjektmappe (rootId). Bruk '2A. Last ned IFC'.");
+      throw new Error("Fant ingen gyldig prosjektmappe (rootId). Bruk '3A. Last ned IFC'.");
     }
 
     const fileBlob = new Blob([generatedIfcText], { type: "application/octet-stream" });
@@ -1750,10 +1938,10 @@ $("btnUploadTc").addEventListener("click", async () => {
       }
     }
 
-    console.error("TC UPLOAD DIAGNOSTIKK (v4.3):", diagnostics);
+    console.error("TC UPLOAD DIAGNOSTIKK (v4.4):", diagnostics);
     const lastErr = diagnostics.find(d => d.body?.message || d.body?.errorcode);
     const reason = lastErr ? `${lastErr.body.errorcode || ""} ${lastErr.body.message || ""}`.trim() : `HTTP ${diagnostics[0]?.status || "feil"}`;
-    throw new Error(`TC avviste opplasting (${reason}). Se Console (F12) eller bruk '2A. Last ned IFC'.`);
+    throw new Error(`TC avviste opplasting (${reason}). Se Console (F12) eller bruk '3A. Last ned IFC'.`);
   } catch (err) {
     setStatus(err.message || String(err), "error");
   } finally {
@@ -1762,6 +1950,7 @@ $("btnUploadTc").addEventListener("click", async () => {
 });
 
 $("btnSync").addEventListener("click", syncVisibleModels);
+$("btnScanProps").addEventListener("click", scanModelPropertiesOnly);
 $("btnAnalyze").addEventListener("click", runAnalysis);
 
 initTC();
